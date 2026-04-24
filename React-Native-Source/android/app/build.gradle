@@ -1,0 +1,65 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+
+// Disable autolinking (Windows exit code 255) - use manual dependencies
+react {
+    // autolinkLibrariesWithApp() - Windows incompatible
+}
+
+def enableProguardInReleaseBuilds = false
+
+android {
+    ndkVersion = rootProject.ext.ndkVersion
+    buildToolsVersion = rootProject.ext.buildToolsVersion
+    compileSdk = rootProject.ext.compileSdkVersion
+
+    namespace = "com.loratoolapp"
+    defaultConfig {
+        applicationId = "com.loratoolapp"
+        minSdkVersion = rootProject.ext.minSdkVersion
+        targetSdkVersion = rootProject.ext.targetSdkVersion
+        versionCode = 5
+        versionName = "5.0.0"
+    }
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+        release {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig = signingConfigs.debug
+        }
+        release {
+            signingConfig = signingConfigs.release
+            minifyEnabled = enableProguardInReleaseBuilds
+            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        }
+    }
+}
+
+dependencies {
+    implementation("com.facebook.react:react-android")
+
+    if (hermesEnabled.toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    }
+
+    // Manual native module dependencies
+    implementation project(':async_storage')
+    implementation project(':ble_plx')
+    implementation project(':geolocation')
+    implementation project(':safe_area_context')
+    implementation project(':screens')
+    implementation project(':webview')
+}

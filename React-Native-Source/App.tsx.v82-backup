@@ -1,0 +1,1220 @@
+/**
+ * LoRaTool v8.0 - iOS/Android Cross-Platform
+ * Based on: LoRaTool-v8.0-final.apk analysis
+ * BLE: react-native-ble-plx (cross-platform)
+ * Theme: Light (亮色主题)
+ * 4 Tabs: Devices / Control / Alerts / Console
+ */
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, FlatList,
+  Alert, PermissionsAndroid, Platform, AsyncStorage, ScrollView,
+  TextInput, Switch, Modal, ActivityIndicator, SafeAreaView,
+  StatusBar, SectionList,
+} from 'react-native';
+import { BleManager, Device, State } from 'react-native-ble-plx';
+import Geolocation, { GeoPosition } from '@react-native-community/geolocation';
+
+// ===== BLE Constants =====
+const SVC_UUID    = '0000aa00-0000-1000-8000-00805f9b34fb';
+const bleManager  = new BleManager();
+const DK          = 'lora_devices_v8';
+const AK          = 'lora_alerts_v8';
+const PWD         = 'cloudtek';
+
+// ===== Theme (v8.1 SaaS Design System) =====
+// Based on: UIdesign.md + docx_text.txt optimization
+// SaaS Colors (Stripe/Vercel/Notion)
+const C = {
+  // Core
+  bg:         '#F1F5F9',    // Background (SaaS)
+  card:       '#FFFFFF',    // Card
+  border:     '#E2E8F0',    // Border
+  // Text - Clear Hierarchy
+  text:       '#0F172A',    // Level1: Page Title (24px Bold)
+  text2:      '#334155',    // Level2: Section (18px SemiBold)
+  muted:      '#64748B',    // Level3: Card (14px) / Level4: Label (12px)
+  // Primary Actions
+  primary:    '#2563EB',    // Primary Button (Apply/Write/Connect)
+  primaryH:   '#1D4ED8',   // Primary Hover
+  // Status
+  ok:         '#16A34A',    // Success (Online, GPS OK)
+  err:        '#DC2626',    // Danger (Delete/Disconnect/Offline)
+  warn:       '#F59E0B',    // Warning (Pending)
+  // Secondary
+  secondary:  '#64748B',    // Secondary Button (Read/Cancel)
+  // Header
+  header:     '#0F172A',    // Dark Header
+  headerMuted:'#94A3B8',    // Header subtitle
+  // Sections
+  sec:        '#EFF6FF',    // Section highlight
+  secText:    '#2563EB',    // Section text
+  // Chips
+  chip:       '#F0F4FF',    // Chip unselected
+  chipSel:    '#2563EB',    // Chip selected bg
+  chipB:      '#DCFCE7',    // Chip green bg
+  chipBSel:   '#16A34A',    // Chip green selected
+  // KPI
+  kpi:        '#F0F4FF',    // KPI card bg
+  kpiBorder:  '#BFDBFE',    // KPI border
+  // Console
+  logBg:      '#1C2128',    // Console dark bg
+  logTX:      '#3FB950',    // TX log green
+  logRX:      '#58A6FF',    // RX log blue
+  logERR:     '#F85149',    // ERR log red
+  logINFO:    '#8B949E',    // INFO log gray
+};
+
+// ===== LoRa Commands (v8.0 - 完整 69+ keys) =====
+const CMDS = [
+  // === System ===
+  {k:0x01,l:'Firmware Version',    s:'VER',     d:'read', t:'hex',   lmt:32},
+  {k:0x02,l:'MAC Address',          s:'MAC',     d:'read', t:'hex',   lmt:8},
+  {k:0x03,l:'Battery Level',        s:'BAT',     d:'read', t:'u8',    o:['0-100%']},
+  {k:0x04,l:'Device Name',          s:'NAME',    d:'both', t:'str',   lmt:20},
+  // === Work Mode ===
+  {k:0x10,l:'Work Mode',            s:'MODE',    d:'both', t:'u8',
+    o:['Standby','Periodic','Timing','Motion']},
+  {k:0x11,l:'Heartbeat Interval',   s:'HBT',     d:'both', t:'u16',  u:'sec', r:[5,3600]},
+  {k:0x12,l:'Time Zone Offset',     s:'TZ',      d:'both', t:'i8',    u:'×15min', r:[-24,28]},
+  {k:0x13,l:'Standby Duration',     s:'STBY',    d:'both', t:'u16',   u:'sec', r:[10,86400]},
+  // === LoRaWAN Keys ===
+  {k:0x20,l:'Device EUI',           s:'DEVEUI',  d:'read', t:'hex',  lmt:8},
+  {k:0x21,l:'App EUI',              s:'APPEUI',  d:'read', t:'hex',  lmt:8},
+  {k:0x22,l:'App Key (OTAA)',       s:'APPKEY',  d:'write',t:'hex',  lmt:16},
+  {k:0x23,l:'Network Session Key', s:'NWKSKEY', d:'read', t:'hex',  lmt:16},
+  {k:0x24,l:'App Session Key',     s:'APPSKEY', d:'read', t:'hex',  lmt:16},
+  {k:0x25,l:'Device Address (ABP)',s:'DEVADDR', d:'both', t:'hex',  lmt:4},
+  {k:0x26,l:'LoRa Region',          s:'REG',     d:'both', t:'u8',
+    o:['EU433','CN470','RU864','IN865','AS923','AU915','KR920','US915','US915-HYBRID','AU920']},
+  // === LoRaWAN Config ===
+  {k:0x27,l:'ADR Enable',           s:'ADR',     d:'both', t:'u8',   o:['OFF','ON']},
+  {k:0x28,l:'Public Network',       s:'PN',      d:'both', t:'u8',   o:['Private','Public']},
+  {k:0x29,l:'Join Mode',            s:'JOINMODE',d:'both', t:'u8',   o:['OTAA','ABP']},
+  {k:0x2A,l:'Join Delay (RX1)',     s:'JOINDLY', d:'both', t:'u8',   u:'sec', r:[1,15]},
+  {k:0x2B,l:'RX2 Delay',            s:'RX2DLY',  d:'both', t:'u8',   u:'sec', r:[1,15]},
+  // === Radio ===
+  {k:0x30,l:'Channel Mask',         s:'CHM',     d:'both', t:'hex',  lmt:16},
+  {k:0x31,l:'Data Rate (DR)',       s:'DR',      d:'both', t:'u8',
+    o:['SF12/125k','SF11/125k','SF10/125k','SF9/125k','SF8/125k','SF7/125k','SF7/250k','FSK','SF12/500k']},
+  {k:0x32,l:'TX Power',             s:'TXPOWER', d:'both', t:'u8',
+    o:['Max','@22dBm','@20dBm','@18dBm','@16dBm','@14dBm','@12dBm','@10dBm','@8dBm','@5dBm','@2dBm']},
+  {k:0x33,l:'Max Air Time',         s:'MAXAIR',  d:'both', t:'u16', u:'ms', r:[0,8000]},
+  {k:0x34,l:'Duty Cycle Mode',      s:'DC',      d:'both', t:'u8',  o:['OFF','ON']},
+  {k:0x35,l:'Duty Cycle Limit',    s:'DCLMT',   d:'both', t:'u16', u:'×10ms', r:[0,65535]},
+  {k:0x36,l:'Sub-Band',             s:'SUBBAND',  d:'both', t:'u8',
+    o:['All','US915-1','US915-2','AU915-1','AU915-2','AU915-3','AU915-4','AU915-5','AU915-6','AU915-7','AU915-8']},
+  // === Uplink ===
+  {k:0x40,l:'Confirmed Mode',        s:'CFM',     d:'both', t:'u8',  o:['Unconfirmed','Confirmed']},
+  {k:0x41,l:'Application Port',     s:'APPPORT', d:'both', t:'u8',  r:[1,223]},
+  {k:0x42,l:'TX Retry Count',        s:'RETRY',   d:'both', t:'u8',  r:[0,8]},
+  {k:0x43,l:'Link Check Interval',  s:'LKI',     d:'both', t:'u16', u:'min', r:[0,1440]},
+  {k:0x44,l:'FDR Enable',           s:'FDR',     d:'both', t:'u8',  o:['OFF','ON']},
+  {k:0x45,l:'Uplink Strategy',     s:'UPSTRAT', d:'both', t:'u8',
+    o:['Normal','Redundant','Redundant+ACK']},
+  // === Network ===
+  {k:0x50,l:'Auto Rejoin',           s:'AJR',     d:'both', t:'u8',  o:['OFF','ON']},
+  {k:0x51,l:'LoRa Class Mode',      s:'CLASS',   d:'both', t:'u8',  o:['A','B','C']},
+  {k:0x52,l:'Reconnect Interval',   s:'RCINT',   d:'both', t:'u16', u:'sec', r:[10,3600]},
+  {k:0x53,l:'Link ADR Mode',        s:'LADR',    d:'both', t:'u8',  o:['OFF','ON']},
+  {k:0x54,l:'Network Check',       s:'NWCHK',   d:'both', t:'u8',  o:['OFF','ON']},
+  {k:0x55,l:'Time Sync',            s:'TIMESYNC',d:'both', t:'u8',  o:['OFF','ON']},
+  {k:0x56,l:'Time Sync Interval',  s:'TSINT',   d:'both', t:'u16', u:'min', r:[1,1440]},
+  // === Position ===
+  {k:0x60,l:'GPS Enable',            s:'GPS',     d:'both', t:'u8',  o:['OFF','ON']},
+  {k:0x61,l:'GPS Fix Timeout',      s:'GPSTOUT', d:'both', t:'u8',  u:'sec', r:[5,120]},
+  {k:0x62,l:'Position Strategy',    s:'POSSTRAT',d:'both', t:'u8',
+    o:['GPS Only','GPS+WiFi','WiFi Only','LBS Only','GPS+LBS','Offline GPS','BLE Beacon']},
+  {k:0x63,l:'WiFi Enable',          s:'WF',      d:'both', t:'u8',  o:['OFF','ON']},
+  {k:0x64,l:'BLE Scan Enable',      s:'BLESCAN', d:'both', t:'u8',  o:['OFF','ON']},
+  {k:0x65,l:'Position Report Interval',s:'POSINT',d:'both', t:'u16',u:'sec', r:[30,86400]},
+  {k:0x66,l:'Motion Detect Interval',s:'MOTINT',  d:'both', t:'u8', u:'sec', r:[1,255]},
+  {k:0x67,l:'Motion Detect Threshold',s:'MOTTHR', d:'both', t:'u8', r:[1,10]},
+  {k:0x68,l:'BLE Beacon UUID Filter',s:'BLEUUID',d:'both', t:'hex',lmt:32},
+  // === SOS ===
+  {k:0x70,l:'SOS Enable',            s:'SOS',     d:'both', t:'u8',  o:['OFF','ON']},
+  {k:0x71,l:'SOS TX Interval',      s:'SOSINT',  d:'both', t:'u16', u:'sec', r:[30,3600]},
+  {k:0x72,l:'SOS Message Count',     s:'SOSCNT',  d:'both', t:'u8',  r:[1,10]},
+  {k:0x73,l:'SOS Battery Threshold', s:'SOSBAT',  d:'both', t:'u8',  u:'%', r:[5,50]},
+  // === BLE Config ===
+  {k:0x80,l:'BLE Advertising Name',  s:'BLENAME', d:'both', t:'str', lmt:20},
+  {k:0x81,l:'BLE TX Power',         s:'BLEPWR',  d:'both', t:'u8',
+    o:['+3dBm','0dBm','-6dBm','-18dBm','-40dBm']},
+  {k:0x82,l:'BLE Adv Interval',     s:'BLEINT',  d:'both', t:'u16', u:'ms', r:[100,10000]},
+  {k:0x83,l:'BLE Connect Timeout',  s:'BLETMO',  d:'both', t:'u16', u:'sec', r:[5,300]},
+  {k:0x84,l:'BLE Security Mode',    s:'BLESEC',  d:'both', t:'u8',
+    o:['None','Passcode','Encrypted']},
+  {k:0x85,l:'BLE Scan Mode',        s:'BLESCANM',d:'both', t:'u8',
+    o:['Normal','Background','Limited']},
+  {k:0x86,l:'BLE Filter RSSI',      s:'BLERSSI', d:'both', t:'i8', u:'dBm', r:[-100,-30]},
+  {k:0x87,l:'BLE Filter by Name',  s:'BLEFILT', d:'both', t:'str', lmt:20},
+  // === Device Config ===
+  {k:0x90,l:'Low Power Mode',       s:'LP',      d:'both', t:'u8',  o:['Normal','Low Power']},
+  {k:0x91,l:'Buzzer Enable',        s:'BUZ',     d:'both', t:'u8',  o:['OFF','ON']},
+  {k:0x92,l:'Vibration Enable',      s:'VIB',     d:'both', t:'u8',  o:['OFF','ON']},
+  {k:0x93,l:'LED Mode',              s:'LED',     d:'both', t:'u8',
+    o:['OFF','Normal','SOS Only','Always On']},
+  {k:0x94,l:'Deep Sleep Interval',   s:'DSINT',   d:'both', t:'u16', u:'min', r:[1,1440]},
+  // === Commands ===
+  {k:0xF0,l:'Reboot Device',         s:'REBOOT',  d:'write',t:'cmd'},
+  {k:0xF1,l:'Factory Reset',        s:'FACTORY', d:'write',t:'cmd'},
+  {k:0xF2,l:'Save Configuration',   s:'SAVE',    d:'write',t:'cmd'},
+  {k:0xF3,l:'Change Password',      s:'PWD',     d:'write',t:'hex', lmt:16},
+  {k:0xF4,l:'Erase All Data',       s:'ERASE',   d:'write',t:'cmd'},
+];
+
+// ===== Sections =====
+const SECTIONS = [
+  {title:'System',       keys:[0x01,0x02,0x03,0x04]},
+  {title:'Work Mode',    keys:[0x10,0x11,0x12,0x13]},
+  {title:'LoRaWAN Keys', keys:[0x20,0x21,0x22,0x23,0x24,0x25]},
+  {title:'LoRaWAN Config',keys:[0x26,0x27,0x28,0x29,0x2A,0x2B]},
+  {title:'Radio',        keys:[0x30,0x31,0x32,0x33,0x34,0x35,0x36]},
+  {title:'Uplink',       keys:[0x40,0x41,0x42,0x43,0x44,0x45]},
+  {title:'Network',      keys:[0x50,0x51,0x52,0x53,0x54,0x55,0x56]},
+  {title:'Position',     keys:[0x60,0x61,0x62,0x63,0x64,0x65,0x66,0x67,0x68]},
+  {title:'SOS',          keys:[0x70,0x71,0x72,0x73]},
+  {title:'BLE Config',   keys:[0x80,0x81,0x82,0x83,0x84,0x85,0x86,0x87]},
+  {title:'Device',       keys:[0x90,0x91,0x92,0x93,0x94]},
+  {title:'Commands',     keys:[0xF0,0xF1,0xF2,0xF3,0xF4]},
+];
+
+// ===== Styles =====
+const S = StyleSheet.create({
+  root:       { flex:1, backgroundColor:C.bg },
+  safe:       { backgroundColor:C.header },
+  header:     { paddingTop:60, paddingHorizontal:16, paddingBottom:12, backgroundColor:C.header },
+  headerRow:  { flexDirection:'row', alignItems:'center', justifyContent:'space-between' },
+  title:      { fontSize:22, fontWeight:'bold', color:'#FFFFFF' },
+  subtitle:   { fontSize:12, color:'#8B949E', marginTop:2 },
+  tabBar:     { flexDirection:'row', backgroundColor:C.header },
+  tab:        { flex:1, paddingVertical:12, alignItems:'center' },
+  tabA:       { borderBottomWidth:2, borderColor:C.ok, paddingBottom:10 },
+  tabT:       { fontSize:13, color:'#8B949E', fontWeight:'500' },
+  tabT2:      { fontSize:13, color:'#FFFFFF', fontWeight:'bold' },
+  content:    { flex:1 },
+  pad:        { padding:16 },
+  // Buttons - SaaS Design System
+  btn: {                    // Primary: 掃描/寫入/連接
+    backgroundColor:C.primary, paddingVertical:12, paddingHorizontal:20,
+    borderRadius:8, alignItems:'center', marginTop:10,
+  },
+  btnW:     { backgroundColor:C.primary },  // Primary (Write/Connect)
+  btnR:     { backgroundColor:C.secondary }, // Secondary (Read/Cancel)
+  btnD:     { backgroundColor:C.err },       // Danger (Delete/Disconnect/Reset)
+  btnDis:   { opacity:0.5 },
+  btnText:  { color:'#FFFFFF', fontSize:15, fontWeight:'600' },
+  smBtn: {                                  // Small Primary
+    backgroundColor:C.primary, paddingVertical:6, paddingHorizontal:12,
+    borderRadius:6, marginLeft:6,
+  },
+  smBtnR:   { backgroundColor:C.err },      // Small Danger
+  smBtnText:{ color:'#FFFFFF', fontSize:12 },
+  // Cards - SaaS Design (16px radius, shadow)
+  card: {
+    backgroundColor:C.card, borderRadius:16, padding:16,
+    marginHorizontal:16, marginTop:8,
+    borderWidth:1, borderColor:C.border,
+    shadowColor:'#000', shadowOpacity:0.06, shadowOffset:{width:0,height:2}, shadowRadius:8, elevation:2,
+  },
+  cardName: { fontSize:16, fontWeight:'700', color:C.text },   // Level3
+  cardId:   { fontSize:11, color:C.muted, marginTop:2, fontFamily:'monospace' },
+  row:      { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginTop:8 },
+  rowLabel: { fontSize:13, color:C.muted, flex:1 },
+  rowVal:   { fontSize:13, color:C.text, fontWeight:'600' },
+  // Sections - Level2 (18px SemiBold)
+  section:  { fontSize:11, color:C.muted, marginTop:16, marginBottom:6,
+    fontWeight:'700', letterSpacing:1, textTransform:'uppercase',
+    paddingHorizontal:16 },
+  // Inputs
+  input: {
+    backgroundColor:C.bg, borderWidth:1, borderColor:C.border,
+    borderRadius:8, paddingHorizontal:12, paddingVertical:9,
+    color:C.text, fontSize:14, marginTop:6,
+  },
+  // KPI - Enhanced with colors
+  kpi: {
+    backgroundColor:C.kpi, borderRadius:16, padding:16,
+    marginHorizontal:16, marginTop:8,
+    borderWidth:1, borderColor:C.kpiBorder,
+    shadowColor:'#2563EB', shadowOpacity:0.06, shadowOffset:{width:0,height:2}, shadowRadius:8,
+  },
+  kpiRow:   { flexDirection:'row', justifyContent:'space-between' },
+  kpiItem:  { alignItems:'center', flex:1 },
+  kpiVal:   { fontSize:22, fontWeight:'bold', color:C.primary }, // SaaS: blue
+  kpiLbl:   { fontSize:11, color:C.muted, marginTop:2 },
+  // Chip - SaaS
+  chip: {
+    paddingHorizontal:12, paddingVertical:6, borderRadius:16,
+    borderWidth:1, marginRight:6, marginTop:6, borderColor:C.primary,
+    backgroundColor:C.chip,
+  },
+  chipS:    { borderColor:C.primary },
+  chipSel:  { backgroundColor:C.chipSel },
+  chipSelT: { color:'#FFFFFF' },
+  chipST:   { fontSize:12, color:C.primary },
+  chipGreen:{ borderColor:C.ok, backgroundColor:C.chipB },
+  chipGreenS:{borderColor:C.ok, backgroundColor:C.chipBSel },
+  chipGreenT:{ fontSize:12, color:C.ok },
+  chipGreenSelT:{fontSize:12, color:'#FFFFFF'},
+  // Modal
+  modal: {
+    flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'center',
+    paddingHorizontal:20,
+  },
+  modalBox:   { backgroundColor:C.card, borderRadius:16, padding:24 } as any,
+  modalT:     { fontSize:18, fontWeight:'bold', color:C.text, marginBottom:16 },
+  modalRow:   { flexDirection:'row', alignItems:'center', marginTop:8, flexWrap:'wrap' as const },
+  // Console
+  logBox:     {
+    backgroundColor:'#1C2128', borderRadius:10, padding:12,
+    marginHorizontal:16, marginTop:12, maxHeight:200,
+  },
+  logLine:    { fontSize:11, fontFamily:'monospace', marginBottom:2 },
+  logTX:      { color:'#3FB950' },
+  logRX:      { color:'#58A6FF' },
+  logERR:     { color:'#F85149' },
+  logINFO:    { color:'#8B949E' },
+  // Misc
+  empty:      { textAlign:'center', color:C.muted, marginTop:40, fontSize:14, lineHeight:22 },
+  spacer:     { height:60 },
+  divider:    { height:1, backgroundColor:C.border, marginVertical:8 },
+  tag:        {
+    backgroundColor:C.sec, paddingHorizontal:8, paddingVertical:3,
+    borderRadius:4, marginRight:6,
+  },
+  tagText:    { fontSize:11, color:C.secText, fontWeight:'600' },
+  badge:      {
+    backgroundColor:C.ok, borderRadius:10, paddingHorizontal:8,
+    paddingVertical:2, marginLeft:6,
+  },
+  badgeText:  { color:'#FFFFFF', fontSize:11, fontWeight:'bold' },
+  badgeR:     { backgroundColor:C.err },
+  // Alert
+  alertCard:  {
+    backgroundColor:C.card, borderRadius:12, padding:14,
+    marginHorizontal:16, marginTop:8,
+    borderWidth:1, borderColor:C.border,
+    borderLeftWidth:4,
+  },
+  alertIcon:  { fontSize:20, marginRight:12 },
+  // Bottom Nav (large icons at screen bottom)
+  bottomNav:  {
+    flexDirection:'row', backgroundColor:'#FFFFFF',
+    borderTopWidth:1, borderTopColor:'#E1E4E8',
+    paddingBottom:32, paddingTop:8,
+    shadowColor:'#000', shadowOffset:{width:0,height:-2},
+    shadowOpacity:0.08, shadowRadius:4, elevation:8,
+  },
+  // Bottom Nav - SaaS Design
+  bNav:       { flex:1, alignItems:'center', paddingVertical:8, borderRadius:12, marginHorizontal:4 },
+  bNavA:      { backgroundColor:C.chip }, // SaaS: light blue bg when selected
+  bNavI:      { fontSize:26, marginBottom:2 },
+  bNavIA:     { fontSize:30 },            // SaaS: larger icon when selected
+  bNavL:      { fontSize:9, color:C.muted, fontWeight:'600' },
+  bNavLA:     { color:C.primary, fontWeight:'bold' }, // SaaS: primary color when selected
+});
+
+// ===== Utility =====
+function hexToBase64(hex: string): string {
+  const bytes: number[] = [];
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes.push(parseInt(hex.substring(i, i+2), 16));
+  }
+  const binary = String.fromCharCode(...bytes);
+  return globalThis.Buffer ? globalThis.Buffer.from(binary, 'binary').toString('base64') : btoa(binary);
+}
+function base64ToHex(b64: string): string {
+  const binary = globalThis.Buffer
+    ? globalThis.Buffer.from(b64, 'base64').toString('binary')
+    : atob(b64);
+  return Array.from(binary).map(c => c.charCodeAt(0).toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+function wait(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+
+// ===== App Component =====
+export default function App({ navigation, route }: { navigation?: any; route?: any } = {}) {
+  const r = route || {};
+  const [tab, setTab]     = useState<'devices'|'control'|'alerts'|'console'>('devices');
+  const [devices, setDev] = useState<any[]>([]);
+  const [scanning, setScanning] = useState(false);
+  const [logs, setLogs]   = useState<string[]>([]);
+  const [alertCount, setAlertCount] = useState(0);
+  const [selDevice, setSelDevice]   = useState<any>(null);
+  const [connected, setConnected]   = useState(false); // global connection tracker
+  const [gps, setGps] = useState<{lat:number;lng:number} | null>(null);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const scanRef  = useRef<Set<string>>(new Set());
+
+  const addLog = useCallback((msg: string, type: 'TX'|'RX'|'ERR'|'INFO' = 'INFO') => {
+    const ts = new Date().toLocaleTimeString();
+    setLogs(prev => [{ ts, msg, type }, ...prev].slice(0, 100));
+  }, []);
+
+  const loadDevices = async () => {
+    try {
+      const d = await AsyncStorage.getItem(DK);
+      if (d) { setDev(JSON.parse(d)); }
+      const a = await AsyncStorage.getItem(AK);
+      if (a) { const alerts = JSON.parse(a); setAlertCount(alerts.length); }
+    } catch {}
+  };
+
+  const saveDevices = async (list: any[]) => {
+    setDev(list);
+    await AsyncStorage.setItem(DK, JSON.stringify(list));
+  };
+
+  useEffect(() => {
+    loadDevices();
+    const sub = bleManager.onStateChange((s: State) => {
+      addLog(s === 'PoweredOn' ? 'Bluetooth: ON' : `Bluetooth: ${s}`, 'INFO');
+    }, true);
+    return () => { sub.remove(); bleManager.stopDeviceScan(); };
+  }, []);
+
+  useEffect(() => {
+    if (r.params?.deviceId) {
+      setSelDevice({ id: r.params.deviceId, name: r.params.deviceName });
+      setTab('control');
+    }
+  }, [r.params]);
+
+  const refreshGps = useCallback(() => {
+    setGpsLoading(true);
+    setGpsError(null);
+    Geolocation.getCurrentPosition(
+      (pos: GeoPosition) => {
+        setGps({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGpsLoading(false);
+        addLog(`GPS: ${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`, 'INFO');
+      },
+      (err) => {
+        setGpsError(err.message);
+        setGpsLoading(false);
+        addLog(`GPS 錯誤: ${err.message}`, 'ERR');
+      },
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
+    );
+  }, []);
+
+  useEffect(() => {
+    refreshGps();
+    const id = setInterval(refreshGps, 30000);
+    return () => clearInterval(id);
+  }, [refreshGps]);
+  const reqPerms = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') return true;
+    try {
+      const perms = [
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+      ];
+      const results = await PermissionsAndroid.requestMultiple(perms as any[]);
+      const ok = Object.values(results).every(r => r === 'granted');
+      if (!ok) addLog('Permission denied', 'ERR');
+      return ok;
+    } catch (e: any) { addLog('Perm error: ' + e.message, 'ERR'); return false; }
+  };
+
+  const startScan = async () => {
+    const ok = await reqPerms();
+    if (!ok) { Alert.alert('需要权限', '藍牙需要定位和藍牙權限'); return; }
+    setScanning(true);
+    scanRef.current.clear();
+    addLog('掃描開始...', 'INFO');
+
+    bleManager.startDeviceScan(null, { allowDuplicates: false }, (error, device) => {
+      if (error) { addLog('Scan: ' + error.message, 'ERR'); return; }
+      if (!device) return;
+      if (scanRef.current.has(device.id)) return;
+      scanRef.current.add(device.id);
+
+      const name = device.name || device.id.slice(0,17);
+      addLog(`Found: ${name} RSSI:${device.rssi}`, 'INFO');
+
+      setDev(prev => {
+        if (prev.find(d => d.id === device.id)) return prev;
+        return [...prev, { id: device.id, name, rssi: device.rssi, lastSeen: Date.now() }];
+      });
+    });
+
+    setTimeout(() => {
+      bleManager.stopDeviceScan();
+      setScanning(false);
+      addLog(`掃描完成 (${scanRef.current.size} 台)`, 'INFO');
+    }, 15000);
+  };
+
+  const stopScan = () => {
+    bleManager.stopDeviceScan();
+    setScanning(false);
+    addLog('掃描停止', 'INFO');
+  };
+
+  const delDevice = async (id: string) => {
+    const list = devices.filter(d => d.id !== id);
+    await saveDevices(list);
+    addLog('已刪除', 'INFO');
+  };
+
+  const openControl = (device: any) => {
+    setSelDevice(device);
+    setTab('control');
+  };
+
+  // ---- Tab: Devices ----
+  if (tab === 'devices') return (
+    <View style={S.root}>
+      <SafeAreaView style={S.safe}>
+        <View style={S.header}>
+          <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+            <View>
+              <Text style={S.title}>LoRaTool</Text>
+              <Text style={S.subtitle}>v8.0 · MOKO LoRaWAN Device Manager</Text>
+            </View>
+            <TouchableOpacity onPress={refreshGps} style={{ alignItems:'flex-end' }}>
+              {gpsLoading ? (
+                <Text style={{ color:'#8B949E', fontSize:12 }}>📍 定位中...</Text>
+              ) : gpsError ? (
+                <Text style={{ color:C.err, fontSize:11 }}>📍 定位失敗{'\n'}({gpsError})</Text>
+              ) : gps ? (
+                <Text style={{ color:'#1A7F37', fontSize:11 }}>
+                  📍 {gps.lat.toFixed(4)},{'\n'}   {gps.lng.toFixed(4)}
+                </Text>
+              ) : (
+                <Text style={{ color:C.muted, fontSize:12 }}>📍 未取得座標</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+
+      <View style={S.content}>
+        <View style={{ padding:16, paddingBottom:8 }}>
+          <TouchableOpacity
+            style={[S.btn, scanning && S.btnDis]}
+            onPress={scanning ? stopScan : startScan}
+          >
+            <Text style={S.btnText}>{scanning ? '⏹ 停止掃描' : '🔍 掃描 BLE 設備'}</Text>
+          </TouchableOpacity>
+          {scanning && (
+            <Text style={{ color:C.muted, textAlign:'center', marginTop:8, fontSize:13 }}>
+              搜索中... (15秒) — 尋找所有 BLE 設備
+            </Text>
+          )}
+        </View>
+
+        <FlatList
+          data={devices}
+          keyExtractor={item => item.id}
+          contentContainerStyle={{ paddingBottom:24 }}
+          ListEmptyComponent={
+            <Text style={S.empty}>未找到設備。{'\n'}點擊「掃描 BLE 設備」開始搜索。</Text>
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity style={S.card} onPress={() => openControl(item)}>
+              <View style={S.row}>
+                <View style={{ flex:1 }}>
+                  <Text style={S.cardName}>{item.name}</Text>
+                  <Text style={S.cardId} numberOfLines={1}>{item.id}</Text>
+                  {item.rssi && <Text style={{ fontSize:11, color:C.muted, marginTop:2 }}>📶 {item.rssi} dBm</Text>}
+                </View>
+                <View style={{ flexDirection:'row', alignItems:'center' }}>
+                  <TouchableOpacity style={[S.smBtn]} onPress={() => openControl(item)}>
+                    <Text style={S.smBtnText}>連接</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[S.smBtn, S.smBtnR]} onPress={() => delDevice(item.id)}>
+                    <Text style={S.smBtnText}>刪除</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+      </View>
+
+      {/* Bottom Nav */}
+      <View style={S.bottomNav}>
+        {(['devices','control','alerts','console'] as const).map(t => {
+          const icons: Record<string,string> = { devices:"📱", control:"⚙️", alerts:"🔔", console:"💻" };
+          const labels: Record<string,string> = { devices:'Devices', control:'Control', alerts:`Alerts${alertCount>0?` (${alertCount})`:''}`, console:'Console' };
+          return (
+            <TouchableOpacity key={t} style={[S.bNav, tab===t && S.bNavA]} onPress={() => setTab(t)}>
+              <Text style={[S.bNavI, tab===t && S.bNavIA]}>{icons[t]}</Text>
+              <Text style={[S.bNavL, tab===t && S.bNavLA]}>{labels[t]}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+
+  // ---- Tab: Control ----
+  if (tab === 'control') return (
+    <ControlScreen
+      device={selDevice}
+      onBack={() => setTab('devices')}
+      onSelectDevice={() => setTab('devices')}
+      addLog={addLog}
+      tab={tab}
+      setTab={setTab}
+    />
+  );
+
+  // ---- Tab: Alerts ----
+  if (tab === 'alerts') return (
+    <AlertsScreen
+      addLog={addLog}
+      onDevicePress={(d: any) => { setSelDevice(d); setTab('control'); }}
+      tab={tab}
+      setTab={setTab}
+      alertCount={alertCount}
+    />
+  );
+
+  // ---- Tab: Console ----
+  const [logFilter, setLogFilter] = useState<'ALL'|'TX'|'RX'|'ERR'>('ALL');
+  const logRef = useRef<FlatList>(null);
+  const filteredLogs = logs.filter(l => logFilter==='ALL' || l.type===logFilter);
+  useEffect(() => {
+    logRef.current?.scrollToOffset({ offset:0, animated:false });
+    setTimeout(() => logRef.current?.scrollToOffset({ offset:0, animated:true }), 50);
+  }, [logs]);
+
+  const copyLog = (msg: string) => { Alert.alert('📋 已複製到剪貼簿', msg); };
+  return (
+    <View style={S.root}>
+      <SafeAreaView style={S.safe}>
+        <View style={S.header}>
+          <Text style={S.title}>Console</Text>
+          <Text style={S.subtitle}>BLE RAW HEX Log · {logs.length} 條</Text>
+        </View>
+      </SafeAreaView>
+
+      {/* Filter Tabs - SaaS Console */}
+      <View style={{ flexDirection:'row', paddingHorizontal:16, paddingVertical:8, backgroundColor:C.bg }}>
+        {(['ALL','TX','RX','ERR'] as const).map(f => (
+          <TouchableOpacity key={f} onPress={() => setLogFilter(f)}
+            style={{ paddingHorizontal:14, paddingVertical:6, borderRadius:8, marginRight:8,
+              backgroundColor: logFilter===f ? (f==='TX'?C.logTX:f==='RX'?C.logRX:f==='ERR'?C.logERR:C.primary) : C.border,
+              borderWidth:1, borderColor: logFilter===f ? 'transparent' : C.border,
+            }}>
+            <Text style={{ color: logFilter===f ? '#FFF' : C.muted, fontSize:12, fontWeight:'600' }}>
+              {f==='ALL'?'全部':f==='TX'?'TX 發送':f==='RX'?'RX 接收':'錯誤'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={S.content}>
+        <View style={S.logBox}>
+          <FlatList
+            ref={logRef}
+            data={filteredLogs}
+            keyExtractor={(_, i) => i.toString()}
+            onContentSizeChange={() => logRef.current?.scrollToOffset({ offset:0, animated:true })}
+            renderItem={({ item }) => (
+              <TouchableOpacity onLongPress={() => copyLog(item.msg)} style={{ paddingVertical:2 }}>
+                <Text style={[
+                  S.logLine,
+                  item.type==='TX' && S.logTX,
+                  item.type==='RX' && S.logRX,
+                  item.type==='ERR' && S.logERR,
+                  item.type==='INFO' && S.logINFO,
+                ]}>
+                  [{item.ts}] {item.type==='TX'?'TX→':item.type==='RX'?'←RX':item.type==='ERR'?'❌ ':''}{item.msg}
+                </Text>
+              </TouchableOpacity>
+            )}
+            ListEmptyComponent={<Text style={[S.logLine, S.logINFO]}>— 無日誌 —</Text>}
+          />
+        </View>
+        <View style={{ padding:16, flexDirection:'row', gap:8 }}>
+          <TouchableOpacity style={[S.btn, S.btnR]} onPress={() => setLogs([])}>
+            <Text style={S.btnText}>清除日誌</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[S.btn]} onPress={() => copyLog(logs.map(l=>`[${l.ts}] ${l.msg}`).join('\n'))}>
+            <Text style={S.btnText}>📋 導出全部</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Bottom Nav */}
+      <View style={S.bottomNav}>
+        {(['devices','control','alerts','console'] as const).map(t => {
+          const icons: Record<string,string> = { devices:"📱", control:"⚙️", alerts:"🔔", console:"💻" };
+          const labels: Record<string,string> = { devices:'Devices', control:'Control', alerts:`Alerts${alertCount>0?` (${alertCount})`:''}`, console:'Console' };
+          return (
+            <TouchableOpacity key={t} style={[S.bNav, tab===t && S.bNavA]} onPress={() => setTab(t)}>
+              <Text style={[S.bNavI, tab===t && S.bNavIA]}>{icons[t]}</Text>
+              <Text style={[S.bNavL, tab===t && S.bNavLA]}>{labels[t]}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// ===== Control Screen =====
+function ControlScreen({ device, onBack, onSelectDevice, addLog, tab, setTab }: Props) {
+  const [connected, setConnected] = useState(false);
+  const [authed, setAuthed]       = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [values, setValues]     = useState<Record<number,string>>({});
+  const [pending, setPending]    = useState<Set<number>>(new Set());
+  const [sending, setSending]    = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [modalCmd, setModalCmd]   = useState<any>(null);
+  const [modalVal, setModalVal]   = useState('');
+  const [selectedSection, setSelectedSection] = useState(0);
+  const [connInfo, setConnInfo]   = useState<any>({});
+  const deviceRef = useRef<any>(null);
+  const charWriteRef = useRef<any>(null);
+  const charNotifyRef = useRef<any>(null);
+
+  const log = (msg: string, type: 'TX'|'RX'|'ERR'|'INFO' = 'INFO') =>
+    addLog(`[${device?.name || '?'}] ${msg}`, type);
+
+  useEffect(() => {
+    if (device) doConnect();
+    return () => { disconnect(); };
+  }, []);
+
+  const doConnect = async () => {
+    if (!device) return;
+    try {
+      setConnecting(true);
+      log('連接中...');
+      const dev = await bleManager.connectToDevice(device.id, { timeout: 20000 });
+      deviceRef.current = dev;
+      await dev.discoverAllServicesAndCharacteristics();
+      log('發現服務...');
+
+      const svcs = await dev.services();
+      let writeChar: any = null, notifyChar: any = null;
+
+      for (const svc of svcs) {
+        const chars = await svc.characteristics();
+        for (const c of chars) {
+          if (c.isWritableWithResponse && !writeChar) {
+            writeChar = c;
+            log(`Write Char: ${c.uuid.slice(0,8)}...`, 'INFO');
+          }
+          if (c.isIndicatable || c.isNotifiable) {
+            if (!notifyChar) {
+              notifyChar = c;
+              log(`Notify Char: ${c.uuid.slice(0,8)}...`, 'INFO');
+            }
+          }
+        }
+      }
+
+      if (!writeChar) { log('未找到可寫入特徵', 'ERR'); setConnecting(false); return; }
+      charWriteRef.current = writeChar;
+      charNotifyRef.current = notifyChar;
+
+      // Monitor for responses
+      if (notifyChar) {
+        const sub = notifyChar.monitor((err: any, c: any) => {
+          if (err || !c?.value) return;
+          const hex = base64ToHex(c.value);
+          log(`← RX: ${hex}`, 'RX');
+          parseResponse(hex);
+        });
+        deviceRef.current._notifySub = sub;
+      }
+
+      setConnInfo({ writeChar: writeChar.uuid, notifyChar: notifyChar?.uuid });
+      setConnected(true);
+      setConnecting(false);
+      log('連接成功！', 'INFO');
+
+      // Auto-send password after brief wait
+      await wait(300);
+      await sendRaw(`ED 01 01 ${PWD.length.toString(16).padStart(2,'0')} ${Array.from(PWD).map(c=>c.charCodeAt(0).toString(16).padStart(2,'0')).join('')} 00 00`);
+      await wait(1000);
+      setAuthed(true);
+      log('密碼驗證已發送', 'INFO');
+    } catch (e: any) {
+      log('連接失敗: ' + e.message, 'ERR');
+      setConnecting(false);
+    }
+  };
+
+  const disconnect = async () => {
+    try {
+      if (deviceRef.current) {
+        if (deviceRef.current._notifySub) {
+          deviceRef.current._notifySub.remove();
+        }
+        await deviceRef.current.cancelConnection();
+      }
+    } catch {}
+    setConnected(false);
+    setAuthed(false);
+    deviceRef.current = null;
+    charWriteRef.current = null;
+    charNotifyRef.current = null;
+    log('已斷開', 'INFO');
+  };
+
+  const parseResponse = (hex: string) => {
+    if (hex.length < 6) return;
+    const cmd = parseInt(hex.slice(2,4), 16);
+    const len = parseInt(hex.slice(4,6), 16);
+    const data = hex.slice(6, 6 + len * 2);
+
+    if (cmd === 0x01 && len > 0) {
+      // Password response
+      if (data.slice(0,2) === '01') {
+        setAuthed(true);
+        log('密碼驗證成功 ✓', 'INFO');
+      } else {
+        log('密碼驗證失敗 ✗', 'ERR');
+      }
+    }
+
+    // Store value
+    if (data) {
+      setValues(prev => ({ ...prev, [cmd]: data }));
+      setPending(prev => { const n = new Set(prev); n.delete(cmd); return n; });
+    }
+  };
+
+  const sendRaw = async (hexStr: string): Promise<boolean> => {
+    if (!charWriteRef.current) { log('未連接', 'ERR'); return false; }
+    const hex = hexStr.replace(/\s/g, '').toUpperCase();
+    try {
+      const b64 = hexToBase64(hex);
+      log(`TX → ${hex}`, 'TX');
+      await charWriteRef.current.writeWithResponse(b64, []);
+      return true;
+    } catch (e: any) {
+      log('TX錯誤: ' + e.message, 'ERR');
+      return false;
+    }
+  };
+
+  const readParam = async (cmd: any) => {
+    const key = cmd.k.toString(16).padStart(2,'0').toUpperCase();
+    const hex = `ED00${key}00`;
+    await sendRaw(hex);
+    await wait(500);
+  };
+
+  const writeParam = async (cmd: any, rawVal: string) => {
+    if (!authed) { log('請先驗證密碼', 'ERR'); return; }
+    setPending(prev => new Set(prev).add(cmd.k));
+
+    let hex = '';
+    if (cmd.t === 'cmd') {
+      hex = cmd.k.toString(16).padStart(2,'0').toUpperCase();
+    } else if (cmd.t === 'hex') {
+      hex = rawVal.replace(/\s/g,'').toUpperCase();
+    } else if (cmd.t === 'u8') {
+      const v = parseInt(rawVal) || 0;
+      hex = v.toString(16).padStart(2,'0').toUpperCase();
+    } else if (cmd.t === 'u16') {
+      const v = parseInt(rawVal) || 0;
+      hex = (v & 0xFF).toString(16).padStart(2,'0') +
+            ((v >> 8) & 0xFF).toString(16).padStart(2,'0');
+    } else if (cmd.t === 'i8') {
+      const v = parseInt(rawVal) || 0;
+      hex = ((v < 0 ? 256 + v : v) & 0xFF).toString(16).padStart(2,'0');
+    } else if (cmd.t === 'str') {
+      hex = rawVal.split('').map(c => c.charCodeAt(0).toString(16).padStart(2,'0')).join('').toUpperCase();
+    }
+
+    const key = cmd.k.toString(16).padStart(2,'0').toUpperCase();
+    const len = (hex.length / 2).toString(16).padStart(2,'0').toUpperCase();
+    const fullHex = `ED01${key}${len}${hex}`;
+    await sendRaw(fullHex);
+    await wait(500);
+
+    if (cmd.t !== 'cmd') {
+      setValues(prev => ({ ...prev, [cmd.k]: hex }));
+    }
+  };
+
+  const openWriteModal = (cmd: any) => {
+    setModalCmd(cmd);
+    setModalVal(values[cmd.k] || '');
+    setShowModal(true);
+  };
+
+  const getDisplayValue = (cmd: any): string => {
+    const v = values[cmd.k];
+    if (!v) return '—';
+    if (cmd.t === 'u8' && cmd.o) {
+      const idx = parseInt(v, 16);
+      return cmd.o[idx] || v;
+    }
+    return v;
+  };
+
+  const currentSection = SECTIONS[selectedSection];
+
+  if (!device) {
+    return (
+      <View style={S.root}>
+        <SafeAreaView style={S.safe}>
+          <View style={S.header}>
+            <Text style={S.title}>Control</Text>
+            <Text style={S.subtitle}>選擇設備</Text>
+          </View>
+        </SafeAreaView>
+        <View style={{ flex:1, justifyContent:'center', alignItems:'center' }}>
+          <Text style={S.empty}>請先選擇設備</Text>
+          <TouchableOpacity style={[S.btn, {marginTop:20}]} onPress={onSelectDevice}>
+            <Text style={S.btnText}>選擇設備</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={S.bottomNav}>
+          {(['devices','control','alerts','console'] as const).map(t => {
+            const icons: Record<string,string> = { devices:"📱", control:"⚙️", alerts:"🔔", console:"💻" };
+            const labels: Record<string,string> = { devices:'Devices', control:'Control', alerts:'Alerts', console:'Console' };
+            return (
+              <TouchableOpacity key={t} style={[S.bNav, tab===t && S.bNavA]} onPress={() => t==='devices'?onSelectDevice():null}>
+                <Text style={[S.bNavI, tab===t && S.bNavIA]}>{icons[t]}</Text>
+                <Text style={[S.bNavL, tab===t && S.bNavLA]}>{labels[t]}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={S.root}>
+      <SafeAreaView style={S.safe}>
+        <View style={S.header}>
+          <View style={S.headerRow}>
+            <TouchableOpacity onPress={() => { disconnect(); onBack(); }}>
+              <Text style={{ color:'#58A6FF', fontSize:14 }}>← 返回</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { disconnect(); onBack(); }} style={{ marginLeft:'auto' }}>
+              <Text style={{ color:'#CF222E', fontSize:14, fontWeight:'bold' }}>斷開連線</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={S.title}>{device.name}</Text>
+          <Text style={S.subtitle}>{device.id.slice(0,20)}...</Text>
+        </View>
+      </SafeAreaView>
+
+      {/* KPI Bar */}
+      {/* KPI Cards - SaaS Design with Colors */}
+      <View style={S.kpi}>
+        <View style={S.kpiRow}>
+          <View style={S.kpiItem}>
+            <Text style={[S.kpiVal, { color: connected ? C.ok : C.err, fontSize:24 }]}>
+              {connecting ? '⏳' : connected ? '●' : '✗'}
+            </Text>
+            <Text style={[S.kpiLbl, { color: connected ? C.ok : C.err }]}>
+              {connecting?'連接中':connected?'Online':'Offline'}
+            </Text>
+          </View>
+          <View style={S.kpiItem}>
+            <Text style={[S.kpiVal, { color: authed ? C.ok : C.warn, fontSize:24 }]}>
+              {authed ? '✓' : '🔒'}
+            </Text>
+            <Text style={[S.kpiLbl, { color: authed ? C.ok : C.warn }]}>
+              {authed?'已驗證':'未驗證'}
+            </Text>
+          </View>
+          <View style={S.kpiItem}>
+            <Text style={[S.kpiVal, { color: pending.size>0 ? C.warn : C.ok, fontSize:24 }]}>
+              {pending.size}
+            </Text>
+            <Text style={[S.kpiLbl, { color: pending.size>0 ? C.warn : C.muted }]}>
+              {pending.size>0?'待回應':'就緒'}
+            </Text>
+          </View>
+          <View style={S.kpiItem}>
+            <Text style={[S.kpiVal, { color: C.primary, fontSize:24 }]}>
+              {values[0x03] ? parseInt(values[0x03],16)+'%' : '—'}
+            </Text>
+            <Text style={S.kpiLbl}>電量</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Section Pills - SaaS Design */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        style={{ backgroundColor:C.header, paddingVertical:8, paddingHorizontal:12 }}>
+        {SECTIONS.map((sec, i) => (
+          <TouchableOpacity key={sec.title}
+            style={{ paddingHorizontal:14, paddingVertical:6, borderRadius:16, marginRight:8,
+              backgroundColor: selectedSection===i ? C.ok : 'rgba(255,255,255,0.1)', // SaaS: green when selected
+              borderWidth:1, borderColor: selectedSection===i ? C.ok : 'rgba(255,255,255,0.2)' }}
+            onPress={() => setSelectedSection(i)}
+          >
+            <Text style={{ color: selectedSection===i ? '#FFF' : C.headerMuted, fontSize:12, fontWeight:'600' }}>
+              {sec.title}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {/* Parameters */}
+      <ScrollView style={{ flex:1 }}>
+        <View style={{ paddingBottom:24 }}>
+          {currentSection.keys.map(k => {
+            const cmd = CMDS.find(c => c.k === k);
+            if (!cmd) return null;
+            const isPending = pending.has(cmd.k);
+            return (
+              <View key={cmd.k} style={[S.card, isPending && { borderColor:C.warn, borderLeftWidth:4 }]}>
+                <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' }}>
+                  <View style={{ flex:1 }}>
+                    <Text style={{ fontSize:14, fontWeight:'600', color:C.text }}>{cmd.l}</Text>
+                    <Text style={{ fontSize:10, color:C.muted, marginTop:2 }}>
+                      {cmd.s} · KEY=0x{cmd.k.toString(16).toUpperCase().padStart(2,'0')} · {cmd.d}
+                    </Text>
+                    <Text style={{
+                      fontSize:13, marginTop:4,
+                      color: values[cmd.k] ? (isPending ? C.warn : C.ok) : C.muted
+                    }}>
+                      {isPending ? '⏳ ' : values[cmd.k] ? '✓ ' : ''}{getDisplayValue(cmd)}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection:'row', gap:4 }}>
+                    {cmd.d !== 'write' && (
+                      <TouchableOpacity
+                        style={[S.smBtn, {backgroundColor:C.muted}]}
+                        onPress={() => readParam(cmd)}
+                        disabled={!connected || sending}
+                      >
+                        <Text style={S.smBtnText}>讀</Text>
+                      </TouchableOpacity>
+                    )}
+                    {cmd.d !== 'read' && (
+                      <TouchableOpacity
+                        style={S.smBtn}
+                        onPress={() => openWriteModal(cmd)}
+                        disabled={!connected || sending}
+                      >
+                        <Text style={S.smBtnText}>寫</Text>
+                      </TouchableOpacity>
+                    )}
+                    {cmd.t === 'cmd' && (
+                      <TouchableOpacity
+                        style={[S.smBtn, S.smBtnR]}
+                        onPress={() => writeParam(cmd, '')}
+                        disabled={!connected || sending}
+                      >
+                        <Text style={S.smBtnText}>執行</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      </ScrollView>
+
+      {/* Write Modal */}
+      {showModal && modalCmd && (
+        <View style={S.modal}>
+          <View style={S.modalBox}>
+            <Text style={S.modalT}>📝 寫入: {modalCmd.l}</Text>
+            <Text style={{ fontSize:12, color:C.muted, marginBottom:12 }}>
+              {modalCmd.s} · KEY=0x{modalCmd.k.toString(16).toUpperCase()} · {modalCmd.d} · {modalCmd.t}
+              {modalCmd.r ? ` (${modalCmd.r[0]}~${modalCmd.r[1]})` : ''}
+              {modalCmd.o ? ` [${modalCmd.o.length} options]` : ''}
+            </Text>
+
+            {modalCmd.o ? (
+              <View style={S.modalRow}>
+                {modalCmd.o.map((opt: string, i: number) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={[S.chip, S.chipS,
+                      modalVal === String(i) && S.chipSel,
+                      !modalCmd.t?.includes('8') && S.chipGreen,
+                      !modalCmd.t?.includes('8') && modalVal === String(i) && S.chipGreenS
+                    ]}
+                    onPress={() => {
+                      setModalVal(String(i));
+                      writeParam(modalCmd, String(i));
+                      setShowModal(false);
+                    }}
+                  >
+                    <Text style={[
+                      S.chipST,
+                      modalVal === String(i) && S.chipSelT,
+                      !modalCmd.t?.includes('8') && S.chipGreenT,
+                      !modalCmd.t?.includes('8') && modalVal === String(i) && S.chipGreenSelT,
+                    ]}>
+                      {opt}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <View>
+                {values[modalCmd.k] && (
+                  <Text style={{ fontSize:12, color:C.ok, marginBottom:8 }}>
+                    當前值: {values[modalCmd.k]}
+                  </Text>
+                )}
+                <View style={{ flexDirection:'row', gap:8 }}>
+                  <View style={{ flex:1 }}>
+                    <TextInput
+                      style={S.input}
+                      value={modalVal}
+                      onChangeText={setModalVal}
+                      placeholder="輸入值"
+                      placeholderTextColor={C.muted}
+                      autoFocus
+                      keyboardType={modalCmd.r ? 'numeric' : 'default'}
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={[S.btn, {marginTop:0, paddingHorizontal:18}]}
+                    onPress={() => { writeParam(modalCmd, modalVal); setShowModal(false); }}
+                    disabled={!modalVal}
+                  >
+                    <Text style={S.btnText}>發送</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            <TouchableOpacity style={{ marginTop:16 }} onPress={() => setShowModal(false)}>
+              <Text style={{ color:C.muted, textAlign:'center' }}>取消</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Bottom Nav */}
+      <View style={S.bottomNav}>
+        {(['devices','control','alerts','console'] as const).map(t => {
+          const icons: Record<string,string> = { devices:"📱", control:"⚙️", alerts:"🔔", console:"💻" };
+          const labels: Record<string,string> = { devices:'Devices', control:'Control', alerts:'Alerts', console:'Console' };
+          return (
+            <TouchableOpacity key={t} style={[S.bNav, tab===t && S.bNavA]} onPress={() => t==='devices'?onSelectDevice():null}>
+              <Text style={[S.bNavI, tab===t && S.bNavIA]}>{icons[t]}</Text>
+              <Text style={[S.bNavL, tab===t && S.bNavLA]}>{labels[t]}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// ===== Alerts Screen =====
+interface Props { device?: any; onBack?: ()=>void; onSelectDevice?: ()=>void; addLog: (msg:string, type?:any)=>void; onDevicePress?: (d:any)=>void; tab?: string; setTab?: (t:any)=>void; alertCount?: number; }
+
+function AlertsScreen({ onDevicePress, tab, setTab, alertCount }: Props) {
+  const [localAlerts, setLocalAlerts] = useState<any[]>([]);
+
+  useEffect(() => {
+    AsyncStorage.getItem(AK).then(d => { if(d) setLocalAlerts(JSON.parse(d)); });
+  }, []);
+
+  const clearAlerts = async () => {
+    await AsyncStorage.setItem(AK, JSON.stringify([]));
+    setLocalAlerts([]);
+  };
+
+  const alertColor = (type: string) => {
+    if (type === 'offline') return C.err;
+    if (type === 'low_battery') return C.warn;
+    return C.blue;
+  };
+  const alertIcon = (type: string) => {
+    if (type === 'offline') return '📡';
+    if (type === 'low_battery') return '🔋';
+    return '⚠️';
+  };
+
+  return (
+    <View style={S.root}>
+      <SafeAreaView style={S.safe}>
+        <View style={S.header}>
+          <Text style={S.title}>Alerts</Text>
+          <Text style={S.subtitle}>設備狀態監控</Text>
+        </View>
+        <View style={S.tabBar}>
+          {(['devices','control','alerts','console'] as const).map(t => (
+            <TouchableOpacity key={t} style={[S.tab, t==='alerts' && S.tabA]} onPress={() => {}}>
+              <Text style={t==='alerts' ? S.tabT2 : S.tabT}>
+                {t==='devices'?'Devices':t==='control'?'Control':t==='alerts'?`Alerts${alertCount>0?` (${alertCount})`:''}`:'Console'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </SafeAreaView>
+
+      <View style={S.content}>
+        {localAlerts.length > 0 && (
+          <View style={{ padding:16, paddingBottom:8 }}>
+            <TouchableOpacity style={[S.btn, {backgroundColor:C.muted}]} onPress={clearAlerts}>
+              <Text style={S.btnText}>清除所有告警 ({localAlerts.length})</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <FlatList
+          data={localAlerts}
+          keyExtractor={(_, i) => i.toString()}
+          contentContainerStyle={{ paddingBottom:24 }}
+          ListEmptyComponent={
+            <Text style={S.empty}>
+              暂无告警{'\n'}連接設備後自動監控 RSSI / 電量 / 離線狀態
+            </Text>
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={[S.alertCard, { borderLeftColor: alertColor(item.type) }]}
+              onPress={() => onDevicePress && item.device && onDevicePress(item.device)}
+            >
+              <View style={{ flexDirection:'row', alignItems:'center' }}>
+                <Text style={{ fontSize:22, marginRight:12 }}>{alertIcon(item.type)}</Text>
+                <View style={{ flex:1 }}>
+                  <Text style={{ fontSize:15, fontWeight:'600', color:C.text }}>{item.title}</Text>
+                  <Text style={{ fontSize:12, color:C.muted, marginTop:2 }}>{item.msg}</Text>
+                  <Text style={{ fontSize:11, color:C.muted, marginTop:4 }}>{item.time}</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+
+        {/* Tip */}
+        <View style={{ padding:16 }}>
+          <Text style={{ fontSize:13, color:C.muted, lineHeight:20 }}>
+            📡 離線告警：設備超過30分鐘未上報{'\n'}
+            🔋 電量告警：低於20%{'\n'}
+            📶 RSSI告警：信號低於-100dBm{'\n'}
+            ⚠️ 自動生成，無需配置
+          </Text>
+        </View>
+      </View>
+
+      {/* Bottom Nav */}
+      <View style={S.bottomNav}>
+        {(['devices','control','alerts','console'] as const).map(t => {
+          const icons: Record<string,string> = { devices:"📱", control:"⚙️", alerts:"🔔", console:"💻" };
+          const ac = alertCount || 0;
+          const labels: Record<string,string> = { devices:'Devices', control:'Control', alerts:`Alerts${ac>0?` (${ac})`:''}`, console:'Console' };
+          const navSetTab = setTab || (()=>{});
+          return (
+            <TouchableOpacity key={t} style={[S.bNav, tab===t && S.bNavA]} onPress={() => navSetTab(t)}>
+              <Text style={[S.bNavI, tab===t && S.bNavIA]}>{icons[t]}</Text>
+              <Text style={[S.bNavL, tab===t && S.bNavLA]}>{labels[t]}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}

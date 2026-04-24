@@ -1,0 +1,18 @@
+pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
+plugins { id("com.facebook.react.settings") }
+// Manual configuration - no autolinking
+rootProject.name = 'LoRaToolApp2'
+include ':app'
+include ':async_storage'
+project(':async_storage').projectDir = new File(rootProject.projectDir, '../node_modules/@react-native-async-storage/async-storage/android')
+include ':ble_plx'
+project(':ble_plx').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-ble-plx/android')
+include ':geolocation'
+project(':geolocation').projectDir = new File(rootProject.projectDir, '../node_modules/@react-native-community/geolocation/android')
+include ':safe_area_context'
+project(':safe_area_context').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-safe-area-context/android')
+include ':screens'
+project(':screens').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-screens/android')
+include ':webview'
+project(':webview').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-webview/android')
+includeBuild('../node_modules/@react-native/gradle-plugin')
