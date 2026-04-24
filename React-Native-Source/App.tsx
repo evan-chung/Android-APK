@@ -823,7 +823,7 @@ export default function App() {
               <Text style={S.statusLbl}>{authed ? '已驗證' : '未驗證'}</Text>
             </View>
             <View style={S.statusItem}>
-              <Text style={[S.statusVal, devValues[0x03] ? `parseInt(devValues[0x03],16)` > 20 ? S.statusValOk : S.statusValErr : {}]}>
+              <Text style={[S.statusVal, devValues[0x03] ? (parseInt(devValues[0x03], 16) > 20 ? S.statusValOk : S.statusValErr) : {}]}>
                 {devValues[0x03] ? `${parseInt(devValues[0x03], 16)}%` : '—'}
               </Text>
               <Text style={S.statusLbl}>電量</Text>
