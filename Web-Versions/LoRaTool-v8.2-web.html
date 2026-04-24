@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LoRaTool v8.2 - SaaS Design Preview</title>
+<style>
+/* ===== SaaS Design System ===== */
+:root{
+  --primary:#2563EB;--primaryH:#1D4ED8;
+  --success:#16A34A;--warning:#F59E0B;--danger:#DC2626;
+  --text:#0F172A;--text2:#334155;--muted:#64748B;
+  --bg:#F1F5F9;--card:#fff;--border:#E2E8F0;
+  --sec:#EFF6FF;
+  --logBG:#1C2128;--logTX:#3FB950;--logRX:#58A6FF;--logERR:#F85149;--logINFO:#8B949E;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;height:100vh;}
+.app{display:flex;flex-direction:column;height:100vh;max-width:480px;margin:0 auto;background:var(--bg);position:relative;}
+
+/* Header - Dark SaaS */
+.header{background:var(--text);padding:14px 16px 12px;}
+.header-row{display:flex;align-items:center;justify-content:space-between;}
+.h-left h1{font-size:22px;font-weight:700;color:#fff;}
+.h-left p{font-size:12px;color:#94A3B8;margin-top:2px;}
+.gps-tag{display:inline-block;padding:4px 10px;border-radius:8px;font-size:11px;font-weight:600;background:#DCFCE7;color:#16A34A;}
+
+/* Content */
+.content{flex:1;overflow-y:auto;padding-bottom:8px;}
+
+/* Buttons - SaaS */
+.btn{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:12px 20px;font-size:15px;font-weight:600;cursor:pointer;width:100%;text-align:center;margin-top:10px;}
+.btn:hover{background:var(--primaryH);}
+.btn-sec{background:var(--muted);color:#fff;border:none;border-radius:8px;padding:12px 20px;font-size:15px;font-weight:600;cursor:pointer;}
+.btn-danger{background:var(--danger);color:#fff;border:none;border-radius:8px;padding:12px 20px;font-size:15px;font-weight:600;cursor:pointer;}
+.btn-sm{background:var(--primary);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;margin-left:6px;}
+.btn-sm-danger{background:var(--danger);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;}
+
+/* Cards - SaaS (16px radius) */
+.card{background:var(--card);border-radius:16px;padding:16px;margin:8px 16px;border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,0.06);}
+.card-name{font-size:16px;font-weight:700;color:var(--text);}
+.card-id{font-size:11px;color:var(--muted);margin-top:2px;font-family:monospace;}
+
+/* KPI - SaaS with colors */
+.kpi{background:#F0F4FF;border-radius:16px;padding:16px;margin:8px 16px;border:1px solid #BFDBFE;box-shadow:0 2px 8px rgba(37,99,235,0.06);}
+.kpi-row{display:flex;justify-content:space-between;}
+.kpi-item{text-align:center;flex:1;}
+.kpi-val{font-size:24px;font-weight:bold;color:var(--primary);}
+.kpi-lbl{font-size:11px;color:var(--muted);margin-top:2px;}
+
+/* Section Pills - SaaS */
+.section-scroll{display:flex;gap:8px;padding:8px 16px;overflow-x:auto;background:var(--text);}
+.section-pill{padding:6px 14px;border-radius:16px;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;border:1px solid rgba(255,255,255,0.2);color:#94A3B8;background:rgba(255,255,255,0.1);}
+.section-pill.active{background:var(--success);color:#fff;border-color:var(--success);}
+
+/* Filter Tabs - Console */
+.filter-scroll{display:flex;gap:8px;padding:8px 16px;background:var(--bg);}
+.filter-tab{padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);color:var(--muted);background:var(--card);}
+.filter-tab.active{background:var(--primary);color:#fff;border-color:var(--primary);}
+.filter-tab.tx{background:#3FB950;color:#fff;border-color:#3FB950;}
+.filter-tab.rx{background:#58A6FF;color:#fff;border-color:#58A6FF;}
+.filter-tab.err{background:#DC2626;color:#fff;border-color:#DC2626;}
+
+/* Console - SaaS */
+.console-box{background:var(--logBG);border-radius:10px;padding:12px;margin:8px 16px;max-height:260px;overflow-y:auto;font-family:'Consolas','Monaco',monospace;font-size:11px;}
+.console-line{margin-bottom:3px;padding:2px 4px;border-radius:4px;}
+.console-line:hover{background:rgba(255,255,255,0.05);cursor:pointer;}
+.console-line.tx{color:var(--logTX);}
+.console-line.rx{color:var(--logRX);}
+.console-line.err{color:var(--logERR);}
+.console-line.info{color:var(--logINFO);}
+
+/* Alert Card */
+.alert-card{background:var(--card);border-radius:16px;padding:16px;margin:8px 16px;border:1px solid var(--border);border-left:4px solid var(--primary);}
+.alert-card.critical{border-left-color:var(--danger);}
+.alert-card.warning{border-left-color:var(--warning);}
+.alert-card .icon{font-size:22px;margin-right:12px;display:inline-block;vertical-align:middle;}
+.alert-card .title{font-size:15px;font-weight:600;}
+.alert-card .msg{font-size:12px;color:var(--muted);margin-top:2px;}
+.alert-card .time{font-size:11px;color:var(--muted);margin-top:4px;}
+
+/* Empty */
+.empty{text-align:center;color:var(--muted);margin-top:40px;font-size:14px;line-height:22px;padding:0 20px;}
+
+/* Modal - SaaS */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;padding:20px;z-index:100;}
+.modal-box{background:var(--card);border-radius:16px;padding:24px;max-width:400px;width:100%;}
+.modal-title{font-size:18px;font-weight:700;margin-bottom:16px;}
+.modal-sub{font-size:12px;color:var(--muted);margin-bottom:12px;}
+.modal-cancel{color:var(--muted);text-align:center;margin-top:16px;cursor:pointer;font-size:14px;}
+.modal-input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:10px;background:var(--bg);color:var(--text);}
+
+/* Bottom Nav - SaaS (Large Icons) */
+.bottom-nav{display:flex;background:#fff;border-top:1px solid var(--border);padding:8px 0 32px;box-shadow:0 -2px 8px rgba(0,0,0,0.08);}
+.bnav{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 4px;cursor:pointer;border-radius:12px;margin:0 4px;transition:all .2s;}
+.bnav:hover{background:#F8FAFC;}
+.bnav.active{background:#F0F4FF;}
+.bnav-icon{font-size:26px;margin-bottom:2px;line-height:1;}
+.bnav.active .bnav-icon{font-size:30px;}
+.bnav-label{font-size:9px;color:var(--muted);font-weight:600;}
+.bnav.active .bnav-label{color:var(--primary);font-weight:bold;}
+
+/* Screen */
+.screen{display:none;flex-direction:column;flex:1;}
+.screen.active{display:flex;}
+
+/* Spacing */
+.section-title{font-size:11px;color:var(--muted);margin:16px 16px 6px;font-weight:700;letter-spacing:1px;text-transform:uppercase;}
+
+/* Status indicators */
+.status-online{color:#16A34A;font-weight:700;}
+.status-offline{color:#DC2626;font-weight:700;}
+.status-warn{color:#F59E0B;font-weight:700;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== DEVICES TAB ===== -->
+  <div class="screen active" id="tab-devices">
+    <div class="header">
+      <div class="header-row">
+        <div class="h-left">
+          <h1>LoRaTool</h1>
+          <p>v8.2 · Cloudtek LoRaWAN Device Manager</p>
+        </div>
+        <div class="gps-tag" id="gps-tag">📍 定位中...</div>
+      </div>
+    </div>
+    <div class="content">
+      <div style="padding:16px 16px 8px;">
+        <button class="btn" id="btn-scan" onclick="toggleScan()">🔍 掃描 BLE 設備</button>
+        <p id="scan-status" style="text-align:center;color:var(--muted);margin-top:8px;font-size:13px;display:none;">搜索中... (15秒內找到的 BLE 設備)</p>
+      </div>
+      <div id="device-list"></div>
+      <p id="device-empty" class="empty">尚未掃描到任何設備<br>點擊上方按鈕開始掃描 BLE 設備</p>
+    </div>
+  </div>
+
+  <!-- ===== CONTROL TAB ===== -->
+  <div class="screen" id="tab-control">
+    <div class="header">
+      <div class="header-row" style="margin-bottom:8px;">
+        <button class="btn" style="width:auto;padding:6px 14px;font-size:13px;background:#94A3B8;margin:0;" onclick="goTab('devices')">← 返回</button>
+        <button class="btn-danger" style="width:auto;padding:6px 14px;font-size:13px;margin:0;" onclick="doDisconnect()">斷開連線</button>
+      </div>
+      <div class="h-left">
+        <h1 id="ctrl-name">Control</h1>
+        <p id="ctrl-id">選擇設備</p>
+      </div>
+    </div>
+    <div id="ctrl-no-device" class="content" style="display:flex;flex-direction:column;justify-content:center;">
+      <p class="empty">請先選擇設備</p>
+      <button class="btn" onclick="goTab('devices')" style="margin:0 16px;">選擇設備</button>
+    </div>
+    <div id="ctrl-connected" style="display:none;">
+      <!-- KPI Cards -->
+      <div class="kpi">
+        <div class="kpi-row">
+          <div class="kpi-item">
+            <div class="kpi-val status-online" id="kpi-conn">—</div>
+            <div class="kpi-lbl">連線狀態</div>
+          </div>
+          <div class="kpi-item">
+            <div class="kpi-val status-online" id="kpi-auth">—</div>
+            <div class="kpi-lbl">認證狀態</div>
+          </div>
+          <div class="kpi-item">
+            <div class="kpi-val" id="kpi-pending">0</div>
+            <div class="kpi-lbl">待回應</div>
+          </div>
+          <div class="kpi-item">
+            <div class="kpi-val">—</div>
+            <div class="kpi-lbl">電量</div>
+          </div>
+        </div>
+      </div>
+      <!-- Section Pills -->
+      <div class="section-scroll" id="ctrl-sections"></div>
+      <!-- Params -->
+      <div class="content" id="ctrl-params" style="padding-bottom:80px;"></div>
+    </div>
+  </div>
+
+  <!-- ===== ALERTS TAB ===== -->
+  <div class="screen" id="tab-alerts">
+    <div class="header">
+      <div class="h-left">
+        <h1>Alerts</h1>
+        <p>設備告警監控</p>
+      </div>
+    </div>
+    <div class="content">
+      <div id="alerts-clear" style="padding:0 16px 8px;display:none;">
+        <button class="btn-sec" onclick="clearAlerts()">清除所有告警 (<span id="alerts-count">0</span>)</button>
+      </div>
+      <div id="alerts-list"></div>
+      <p id="alerts-empty" class="empty">暫無告警<br>連接設備後自動監控</p>
+      <div style="padding:16px;">
+        <p style="font-size:13px;color:var(--muted);line-height:20px;">
+          📡 離線告警：設備超過30分鐘未上報<br>
+          🔋 電量告警：低於20%<br>
+          📶 RSSI告警：信號低於-100dBm
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CONSOLE TAB ===== -->
+  <div class="screen" id="tab-console">
+    <div class="header">
+      <div class="h-left">
+        <h1>Console</h1>
+        <p>BLE RAW HEX Log · <span id="log-count">0</span> 條</p>
+      </div>
+    </div>
+    <!-- Filter Tabs -->
+    <div class="filter-scroll">
+      <div class="filter-tab active" onclick="setLogFilter('ALL')" id="filter-all">全部</div>
+      <div class="filter-tab" onclick="setLogFilter('TX')" id="filter-tx">TX 發送</div>
+      <div class="filter-tab" onclick="setLogFilter('RX')" id="filter-rx">RX 接收</div>
+      <div class="filter-tab" onclick="setLogFilter('ERR')" id="filter-err">錯誤</div>
+    </div>
+    <div class="content">
+      <div class="console-box" id="console-log">
+        <div class="console-line info">[--:--:--] 系統就緒 · v8.2 Web Preview</div>
+      </div>
+      <div style="padding:16px;display:flex;gap:8px;">
+        <button class="btn-sec" onclick="clearConsole()">清除日誌</button>
+        <button class="btn" onclick="exportLogs()">📋 導出全部</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Bottom Nav ===== -->
+  <nav class="bottom-nav">
+    <div class="bnav active" onclick="goTab('devices')" id="bnav-devices">
+      <span class="bnav-icon">📱</span>
+      <span class="bnav-label">Devices</span>
+    </div>
+    <div class="bnav" onclick="goTab('control')" id="bnav-control">
+      <span class="bnav-icon">⚙️</span>
+      <span class="bnav-label">Control</span>
+    </div>
+    <div class="bnav" onclick="goTab('alerts')" id="bnav-alerts">
+      <span class="bnav-icon">🔔</span>
+      <span class="bnav-label" id="bnav-alerts-label">Alerts</span>
+    </div>
+    <div class="bnav" onclick="goTab('console')" id="bnav-console">
+      <span class="bnav-icon">💻</span>
+      <span class="bnav-label">Console</span>
+    </div>
+  </nav>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modal" style="display:none;" onclick="if(event.target===this)closeModal()">
+    <div class="modal-box">
+      <div class="modal-title" id="modal-title">寫入參數</div>
+      <div class="modal-sub" id="modal-sub"></div>
+      <div id="modal-content"></div>
+      <div class="modal-cancel" onclick="closeModal()">取消</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== SaaS Data =====
+const CMDS=[
+  {k:0x01,l:'Firmware Version',s:'VER',d:'read',t:'hex'},{k:0x02,l:'MAC Address',s:'MAC',d:'read',t:'hex'},
+  {k:0x03,l:'Battery Level',s:'BAT',d:'read',t:'u8',o:['0-100%']},{k:0x04,l:'Device Name',s:'NAME',d:'both',t:'str'},
+  {k:0x10,l:'Work Mode',s:'MODE',d:'both',t:'u8',o:['Standby','Periodic','Timing','Motion']},
+  {k:0x11,l:'Heartbeat Interval',s:'HBT',d:'both',t:'u16',r:[5,3600]},
+  {k:0x20,l:'Device EUI',s:'DEVEUI',d:'read',t:'hex'},{k:0x21,l:'App EUI',s:'APPEUI',d:'read',t:'hex'},
+  {k:0x22,l:'App Key (OTAA)',s:'APPKEY',d:'write',t:'hex'},{k:0x26,l:'LoRa Region',s:'REG',d:'both',t:'u8',o:['EU433','CN470','RU864','IN865','AS923','AU915','KR920','US915']},
+  {k:0x27,l:'ADR Enable',s:'ADR',d:'both',t:'u8',o:['OFF','ON']},{k:0x31,l:'Data Rate (DR)',s:'DR',d:'both',t:'u8',o:['SF12','SF11','SF10','SF9','SF8','SF7']},
+  {k:0x32,l:'TX Power',s:'TXPOWER',d:'both',t:'u8',o:['Max','22dBm','20dBm','18dBm']},
+  {k:0x40,l:'Confirmed Mode',s:'CFM',d:'both',t:'u8',o:['Unconfirmed','Confirmed']},{k:0x41,l:'Application Port',s:'APPPORT',d:'both',t:'u8'},
+  {k:0x51,l:'LoRa Class Mode',s:'CLASS',d:'both',t:'u8',o:['A','B','C']},
+  {k:0x60,l:'GPS Enable',s:'GPS',d:'both',t:'u8',o:['OFF','ON']},{k:0x62,l:'Position Strategy',s:'POSSTRAT',d:'both',t:'u8',o:['GPS Only','GPS+WiFi','WiFi Only']},
+  {k:0x70,l:'SOS Enable',s:'SOS',d:'both',t:'u8',o:['OFF','ON']},{k:0x80,l:'BLE Advertising Name',s:'BLENAME',d:'both',t:'str'},
+  {k:0x90,l:'Low Power Mode',s:'LP',d:'both',t:'u8',o:['Normal','Low Power']},{k:0x91,l:'Buzzer Enable',s:'BUZ',d:'both',t:'u8',o:['OFF','ON']},{k:0x92,l:'Vibration Enable',s:'VIB',d:'both',t:'u8',o:['OFF','ON']},
+  {k:0xF0,l:'Reboot Device',s:'REBOOT',d:'write',t:'cmd'},{k:0xF1,l:'Factory Reset',s:'FACTORY',d:'write',t:'cmd'},
+];
+const SECTIONS=[
+  {title:'System',keys:[0x01,0x02,0x03,0x04]},
+  {title:'Work Mode',keys:[0x10,0x11]},
+  {title:'LoRaWAN',keys:[0x20,0x21,0x22,0x26,0x27]},
+  {title:'Radio',keys:[0x31,0x32]},
+  {title:'Uplink',keys:[0x40,0x41]},
+  {title:'Network',keys:[0x51]},
+  {title:'Position',keys:[0x60,0x62]},
+  {title:'SOS',keys:[0x70]},
+  {title:'BLE Config',keys:[0x80]},
+  {title:'Device',keys:[0x90,0x91,0x92]},
+  {title:'Commands',keys:[0xF0,0xF1]},
+];
+let devices=JSON.parse(localStorage.getItem('lora_devices')||'[]');
+let currentTab='devices';
+let selectedDevice=null;
+let isScanning=false;
+let values={};
+let pending=new Set();
+let alertCount=0;
+let logFilter='ALL';
+let logs=[];
+
+// GPS Init
+function initGps(){
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      p=>{document.getElementById('gps-tag').textContent=`📍 ${p.coords.latitude.toFixed(4)}, ${p.coords.longitude.toFixed(4)}`;},
+      e=>{document.getElementById('gps-tag').textContent='📍 定位失敗';},
+      {timeout:15000}
+    );
+  }
+}
+setTimeout(initGps,500);
+
+function goTab(tab){
+  currentTab=tab;
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.querySelectorAll('.bnav').forEach(n=>n.classList.remove('active'));
+  document.getElementById('bnav-'+tab).classList.add('active');
+}
+
+function addLog(msg,type='INFO'){
+  const logEl=document.getElementById('console-log');
+  const ts=new Date().toLocaleTimeString();
+  const div=document.createElement('div');
+  div.className='console-line '+type.toLowerCase();
+  div.textContent=`[${ts}] ${type==='TX'?'TX→':type==='RX'?'←RX':type==='ERR'?'❌ ':''}${msg}`;
+  div.onclick=()=>{navigator.clipboard?.writeText(msg);alert('已複製: '+msg);};
+  logEl.appendChild(div);
+  logEl.scrollTop=0;
+  logs.push({ts,msg,type});
+  document.getElementById('log-count').textContent=logs.length;
+  if(logEl.children.length>100)logEl.removeChild(logEl.lastChild);
+  renderFilteredLogs();
+}
+function clearConsole(){document.getElementById('console-log').innerHTML='';logs=[];document.getElementById('log-count').textContent='0';}
+function exportLogs(){alert(logs.map(l=>`[${l.ts}] ${l.msg}`).join('\n'));}
+function setLogFilter(f){
+  logFilter=f;
+  document.querySelectorAll('.filter-tab').forEach(t=>t.classList.remove('active','tx','rx','err'));
+  const el=document.getElementById('filter-'+f.toLowerCase());
+  if(f==='TX')el.classList.add('tx');else if(f==='RX')el.classList.add('rx');else if(f==='ERR')el.classList.add('err');else el.classList.add('active');
+  renderFilteredLogs();
+}
+function renderFilteredLogs(){
+  const logEl=document.getElementById('console-log');
+  logEl.innerHTML='';
+  logs.filter(l=>logFilter==='ALL'||l.type===logFilter)
+    .forEach(l=>{
+      const div=document.createElement('div');
+      div.className='console-line '+l.type.toLowerCase();
+      div.textContent=`[${l.ts}] ${l.type==='TX'?'TX→':l.type==='RX'?'←RX':l.type==='ERR'?'❌ ':''}${l.msg}`;
+      div.onclick=()=>{navigator.clipboard?.writeText(l.msg);alert('已複製: '+l.msg);};
+      logEl.appendChild(div);
+    });
+  logEl.scrollTop=0;
+}
+
+const MOCK_DEVICES=[{name:'Cloudtek-LW01',id:'AA:BB:CC:DD:EE:01',rssi:-65},{name:'Cloudtek-LW02',id:'AA:BB:CC:DD:EE:02',rssi:-72},{name:'LoRa-Gateway',id:'AA:BB:CC:DD:EE:03',rssi:-58}];
+function toggleScan(){
+  if(isScanning){isScanning=false;document.getElementById('btn-scan').textContent='🔍 掃描 BLE 設備';document.getElementById('scan-status').style.display='none';return;}
+  isScanning=true;
+  document.getElementById('btn-scan').textContent='⏹ 停止掃描';
+  document.getElementById('scan-status').style.display='block';
+  document.getElementById('device-empty').style.display='none';
+  devices=[];document.getElementById('device-list').innerHTML='<p class="empty">🔍 掃描中...</p>';
+  addLog('BLE 掃描開始...','INFO');
+  let count=0;
+  const iv=setInterval(()=>{
+    if(!isScanning||count>=MOCK_DEVICES.length){clearInterval(iv);document.getElementById('btn-scan').textContent='🔍 掃描 BLE 設備';isScanning=false;document.getElementById('scan-status').style.display='none';addLog('掃描完成 ('+devices.length+' 設備)','INFO');return;}
+    const d=MOCK_DEVICES[count++];devices.push(d);localStorage.setItem('lora_devices',JSON.stringify(devices));renderDeviceList();addLog('Found: '+d.name+' RSSI:'+d.rssi+' dBm','INFO');
+  },1500);
+}
+function renderDeviceList(){
+  const el=document.getElementById('device-list');
+  if(devices.length===0){el.innerHTML='<p class="empty">尚未掃描到任何設備</p>';return;}
+  el.innerHTML=devices.map(d=>`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><div style="flex:1"><div class="card-name">${d.name}</div><div class="card-id">${d.id}</div>${d.rssi?`<div style="font-size:11px;color:var(--muted);margin-top:2px;">📶 ${d.rssi} dBm</div>`:''}</div><div style="display:flex;gap:6px;"><button class="btn-sm" onclick="openDevice(${devices.indexOf(d)})">控制</button><button class="btn-sm-danger" onclick="delDevice('${d.id}')">刪除</button></div></div></div>`).join('');
+}
+function delDevice(id){devices=devices.filter(d=>d.id!==id);localStorage.setItem('lora_devices',JSON.stringify(devices));renderDeviceList();}
+function openDevice(idx){
+  selectedDevice=devices[idx];
+  document.getElementById('ctrl-name').textContent=selectedDevice.name;
+  document.getElementById('ctrl-id').textContent=selectedDevice.id;
+  document.getElementById('ctrl-no-device').style.display='none';
+  document.getElementById('ctrl-connected').style.display='block';
+  values={};pending=new Set();
+  document.getElementById('kpi-conn').textContent='Online';
+  document.getElementById('kpi-conn').className='kpi-val status-online';
+  document.getElementById('kpi-auth').textContent='已驗證';
+  document.getElementById('kpi-auth').className='kpi-val status-online';
+  values={0x01:'4.2.1',0x02:'AABBCCDDEEFF0011',0x03:'64',0x04:'Cloudtek-LW01',0x10:'01',0x26:'04',0x27:'01',0x31:'03',0x32:'00',0x60:'01',0x80:'4D4F4B4F2D4C573031',0x90:'00',0x91:'01'};
+  renderSectionPills();renderParams();
+  goTab('control');
+  addLog('已連線至 '+selectedDevice.name,'INFO');
+  addLog('密碼驗證成功 ✓','INFO');
+}
+function doDisconnect(){
+  selectedDevice=null;
+  document.getElementById('ctrl-no-device').style.display='flex';
+  document.getElementById('ctrl-connected').style.display='none';
+  addLog('已斷開連線','INFO');
+  goTab('devices');
+}
+
+function renderSectionPills(){
+  const el=document.getElementById('ctrl-sections');
+  el.innerHTML=SECTIONS.map((s,i)=>`<div class="section-pill ${i===0?'active':''}" onclick="selectSection(${i})">${s.title}</div>`).join('');
+}
+let selectedSection=0;
+function selectSection(idx){selectedSection=idx;document.querySelectorAll('.section-pill').forEach((p,i)=>p.classList.toggle('active',i===idx));renderParams();}
+
+function renderParams(){
+  const sec=SECTIONS[selectedSection];
+  const el=document.getElementById('ctrl-params');
+  el.innerHTML=sec.keys.map(k=>{
+    const cmd=CMDS.find(c=>c.k===k);if(!cmd)return'';
+    const val=values[cmd.k];
+    const p=pending.has(cmd.k);
+    const display=val?(cmd.o?cmd.o[parseInt(val,16)]||val:val):'—';
+    return`<div class="card" style="${p?'border-left:4px solid var(--warning);':''}"><div style="font-size:14px;font-weight:600;">${cmd.l}</div><div style="font-size:10px;color:var(--muted);margin-top:2px;">${cmd.s} · KEY=0x${cmd.k.toString(16).toUpperCase().padStart(2,'0')} · ${cmd.d}</div><div style="font-size:13px;margin-top:4px;${p?'color:var(--warning);':val?'color:var(--success);':'color:var(--muted);'}">${p?'⏳':''}${display}</div><div style="display:flex;gap:6px;margin-top:8px;">${cmd.d!=='write'?'<button class="btn-sec" style="padding:6px 12px;font-size:12px;" onclick="readParam('+cmd.k+')">讀取</button>':''}${cmd.d!=='read'?'<button class="btn" style="margin:0;padding:6px 12px;font-size:12px;width:auto;" onclick="openWriteModal('+cmd.k+')">寫入</button>':''}${cmd.t==='cmd'?'<button class="btn-danger" style="margin:0;padding:6px 12px;font-size:12px;width:auto;" onclick="execCmd('+cmd.k+')">執行</button>':''}</div></div>`;
+  }).join('');
+}
+function readParam(k){
+  pending.add(k);document.getElementById('kpi-pending').textContent=pending.size;renderParams();
+  addLog('TX → READ CMD 0x'+k.toString(16).toUpperCase().padStart(2,'0'),'TX');
+  setTimeout(()=>{values[k]='0A';pending.delete(k);document.getElementById('kpi-pending').textContent=pending.size;renderParams();addLog('RX ← 0x'+k.toString(16).toUpperCase().padStart(2,'0')+' = 0A','RX');},600);
+}
+function execCmd(k){addLog('TX → EXEC CMD 0x'+k.toString(16).toUpperCase().padStart(2,'0'),'TX');setTimeout(()=>addLog('RX ← CMD 0x'+k.toString(16).toUpperCase().padStart(2,'0')+' OK','RX'),400);}
+
+let modalCmd=null;
+function openWriteModal(k){
+  modalCmd=CMDS.find(c=>c.k===k);const cmd=modalCmd;
+  document.getElementById('modal-title').textContent='寫入: '+cmd.l;
+  document.getElementById('modal-sub').innerHTML=cmd.s+' · KEY=0x'+cmd.k.toString(16).toUpperCase()+' · '+cmd.d;
+  let content='';
+  if(cmd.o){content='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">'+cmd.o.map((o,i)=>`<div style="padding:6px 12px;border-radius:16px;border:1px solid var(--primary);font-size:12px;cursor:pointer;background:var(--card);" onclick="writeChip(${i})">${o}</div>`).join('')+'</div>';}
+  else{content=`<input class="modal-input" id="modal-input" placeholder="輸入值" value="${values[cmd.k]||''}"><button class="btn" style="margin:0;" onclick="writeValue()">寫入</button>`;}
+  document.getElementById('modal-content').innerHTML=content;
+  document.getElementById('modal').style.display='flex';
+}
+function writeChip(idx){
+  pending.add(modalCmd.k);document.getElementById('kpi-pending').textContent=pending.size;renderParams();
+  const hexVal=idx.toString(16).padStart(2,'0').toUpperCase();
+  addLog('TX → WRITE 0x'+modalCmd.k.toString(16).toUpperCase().padStart(2,'0')+' = '+hexVal+' ('+modalCmd.o[idx]+')','TX');
+  closeModal();
+  setTimeout(()=>{values[modalCmd.k]=hexVal;pending.delete(modalCmd.k);document.getElementById('kpi-pending').textContent=pending.size;renderParams();addLog('RX ← ACK 0x'+modalCmd.k.toString(16).toUpperCase().padStart(2,'0'),'RX');},500);
+}
+function writeValue(){
+  const val=document.getElementById('modal-input').value.trim();if(!val)return;
+  pending.add(modalCmd.k);document.getElementById('kpi-pending').textContent=pending.size;renderParams();
+  addLog('TX → WRITE 0x'+modalCmd.k.toString(16).toUpperCase().padStart(2,'0')+' = '+val.toUpperCase(),'TX');
+  closeModal();
+  setTimeout(()=>{values[modalCmd.k]=val.toUpperCase();pending.delete(modalCmd.k);document.getElementById('kpi-pending').textContent=pending.size;renderParams();addLog('RX ← ACK 0x'+modalCmd.k.toString(16).toUpperCase().padStart(2,'0'),'RX');},500);
+}
+function closeModal(){document.getElementById('modal').style.display='none';}
+
+renderDeviceList();
+addLog('Web Preview v8.2 就緒 · SaaS Design System','INFO');
+</script>
+</body>
+</html>

@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LoRa Tool v3 - 商業版</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root {
+  --primary:#1976d2;
+  --secondary:#1565c0;
+  --success:#43a047;
+  --warning:#ff9800;
+  --error:#e53935;
+  --bg:#f5f7fa;
+  --card:#fff;
+  --text:#333;
+  --gray:#666;
+  --light:#f0f0f0;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);overflow-x:hidden}
+.app{max-width:480px;margin:0 auto;background:var(--bg);min-height:100vh;position:relative;padding-bottom:70px}
+
+/* Mode Switcher */
+.mode-switcher{position:fixed;top:60px;right:16px;z-index:200}
+.mode-btn{padding:8px 16px;border:none;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
+.mode-btn.customer{background:var(--success);color:#fff}
+.mode-btn.engineer{background:var(--primary);color:#fff}
+
+/* Header */
+.header{background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;padding:16px;text-align:center;position:sticky;top:0;z-index:100}
+.header h1{font-size:20px;font-weight:600}
+.header .status{font-size:11px;opacity:0.9;margin-top:4px;display:flex;justify-content:center;gap:16px}
+.header .status span{display:flex;align-items:center;gap:4px}
+
+/* Tab Content */
+.tab-content{padding:16px;display:none}
+.tab-content.active{display:block}
+
+/* Cards */
+.card{background:var(--card);border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06);margin-bottom:16px;overflow:hidden}
+.card-header{padding:14px 16px;border-bottom:1px solid var(--light);font-weight:600;font-size:15px;display:flex;justify-content:space-between;align-items:center}
+.card-body{padding:16px}
+
+/* Status Grid */
+.status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center}
+.status-item{padding:12px;background:var(--light);border-radius:12px}
+.status-item .number{font-size:28px;font-weight:700}
+.status-item .label{font-size:11px;color:var(--gray);margin-top:4px}
+.status-item.success .number{color:var(--success)}
+.status-item.error .number{color:var(--error)}
+.status-item.warning .number{color:var(--warning)}
+
+/* Quick Actions */
+.actions-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.action-btn{background:var(--primary);color:#fff;border:none;padding:16px;border-radius:12px;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.2s;display:flex;flex-direction:column;align-items:center;gap:6px}
+.action-btn:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(25,118,210,0.3)}
+.action-btn .icon{font-size:24px}
+
+/* Device List */
+.device-item{display:flex;justify-content:space-between;align-items:center;padding:14px;border-bottom:1px solid var(--light);transition:background 0.2s}
+.device-item:hover{background:var(--light)}
+.device-item:last-child{border-bottom:none}
+.device-info{flex:1}
+.device-info .name{font-weight:600;font-size:14px}
+.device-info .details{font-size:12px;color:var(--gray);margin-top:3px}
+.device-info .signal{display:flex;align-items:center;gap:8px;margin-top:6px}
+.device-info .signal-bar{height:4px;border-radius:2px;background:var(--success)}
+.device-info .signal-bar.poor{background:var(--error)}
+.device-info .signal-bar.fair{background:var(--warning)}
+.device-status{padding:5px 14px;border-radius:20px;font-size:11px;font-weight:600}
+.device-status.connecting{background:#fff3e0;color:var(--warning)}
+.device-status.connected{background:#e8f5e9;color:var(--success)}
+.device-status.failed{background:#ffebee;color:var(--error)}
+.device-status.offline{background:var(--light);color:var(--gray)}
+
+/* Connection Status */
+.connection-status{display:flex;align-items:center;gap:8px;padding:12px;background:#e3f2fd;border-radius:12px;margin-bottom:16px}
+.connection-status .dot{width:10px;height:10px;border-radius:50%;background:var(--success);animation:pulse 2s infinite}
+.connection-status .dot.error{background:var(--error);animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+
+/* Alert Item */
+.alert-item{padding:14px;border-radius:12px;margin-bottom:10px;border-left:4px solid;transition:all 0.3s}
+.alert-item.warning{background:#fff3e0;border-color:var(--warning)}
+.alert-item.critical{background:#ffebee;border-color:var(--error)}
+.alert-item.recovered{background:#e8f5e9;border-color:var(--success)}
+.alert-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.alert-badge{padding:3px 10px;border-radius:12px;font-size:10px;font-weight:600}
+.alert-badge.warning{background:var(--warning);color:#fff}
+.alert-badge.critical{background:var(--error);color:#fff}
+.alert-badge.recovered{background:var(--success);color:#fff}
+.alert-title{font-size:13px;font-weight:600}
+.alert-desc{font-size:11px;color:var(--gray);margin-top:3px}
+.alert-time{font-size:10px;color:var(--gray);margin-top:6px}
+
+/* Scan Screen */
+.scan-btn{width:100%;background:var(--success);color:#fff;border:none;padding:18px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:8px}
+.scan-btn:hover{background:#388e3c}
+.scan-btn.scanning{background:var(--warning);animation:pulse 1s infinite}
+.device-count{text-align:center;font-size:14px;color:var(--gray);margin:16px 0}
+
+/* Search Bar */
+.search-bar{width:100%;padding:14px 16px;border:1px solid var(--light);border-radius:12px;font-size:14px;margin-bottom:16px;background:var(--card)}
+
+/* Data Screen */
+.input-group{margin-bottom:16px}
+.input-group label{display:block;font-size:13px;font-weight:600;margin-bottom:8px;color:var(--gray)}
+.text-input{width:100%;padding:14px;border:1px solid var(--light);border-radius:12px;font-size:14px;min-height:100px;resize:vertical}
+.format-buttons{display:flex;gap:8px;margin-bottom:16px}
+.format-btn{flex:1;padding:12px;border:2px solid var(--light);background:var(--card);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer}
+.format-btn.active{border-color:var(--primary);color:var(--primary);background:#e3f2fd}
+.send-btn{width:100%;background:var(--primary);color:#fff;border:none;padding:16px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer}
+.rx-box{background:#1a1a1a;color:#00ff00;padding:16px;border-radius:12px;font-family:monospace;font-size:12px;min-height:120px;white-space:pre-wrap;max-height:200px;overflow-y:auto}
+
+/* Config Screen - Customer Mode */
+.mode-selector{display:flex;gap:12px;margin-bottom:20px}
+.mode-card{flex:1;padding:20px;border:2px solid var(--light);border-radius:16px;text-align:center;cursor:pointer;transition:all 0.2s}
+.mode-card:hover{border-color:var(--primary)}
+.mode-card.active{border-color:var(--primary);background:#e3f2fd}
+.mode-card .icon{font-size:32px;margin-bottom:8px}
+.mode-card .title{font-weight:700;font-size:15px;margin-bottom:4px}
+.mode-card .desc{font-size:11px;color:var(--gray)}
+.mode-card .stats{margin-top:12px;font-size:12px;color:var(--gray)}
+.mode-card .stats span{display:block}
+
+/* Config Screen - Engineer Mode */
+.config-section{margin-bottom:20px}
+.config-label{font-size:14px;font-weight:600;margin-bottom:12px;color:var(--gray)}
+.freq-buttons{display:flex;gap:8px;flex-wrap:wrap}
+.freq-btn{flex:1;min-width:70px;padding:12px;border:2px solid var(--light);background:var(--card);border-radius:10px;font-size:13px;cursor:pointer}
+.freq-btn.active{border-color:var(--primary);color:var(--primary);background:#e3f2fd}
+.sf-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.sf-btn{padding:12px 0;border:2px solid var(--light);background:var(--card);border-radius:8px;font-size:12px;cursor:pointer}
+.sf-btn.active{border-color:var(--primary);color:var(--primary);background:#e3f2fd}
+.power-slider{width:100%;margin:20px 0}
+.power-value{text-align:center;font-size:32px;font-weight:700;color:var(--primary);margin-bottom:8px}
+.power-range{display:flex;justify-content:space-between;font-size:12px;color:var(--gray)}
+
+/* Monitor Screen */
+.signal-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px}
+.signal-box{text-align:center;padding:20px;background:var(--light);border-radius:16px}
+.signal-value{font-size:40px;font-weight:700}
+.signal-label{font-size:12px;color:var(--gray);margin-top:4px}
+
+/* Chart */
+.chart-container{background:var(--light);border-radius:16px;padding:16px;margin-bottom:16px}
+.chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.chart-title{font-size:13px;font-weight:600}
+.chart-y-axis{font-size:10px;color:var(--gray)}
+.chart-box{height:150px;display:flex;align-items:flex-end;gap:3px}
+.chart-bar{flex:1;background:var(--primary);border-radius:4px 4px 0 0;transition:height 0.3s;position:relative}
+.chart-bar.excellent{background:var(--success)}
+.chart-bar.good{background:#81c784}
+.chart-bar.fair{background:var(--warning)}
+.chart-bar.poor{background:var(--error)}
+.chart-x-axis{display:flex;justify-content:space-between;margin-top:8px;font-size:10px;color:var(--gray)}
+
+/* Stats Grid */
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat-box{text-align:center;padding:14px;background:var(--light);border-radius:12px}
+.stat-label{font-size:11px;color:var(--gray)}
+.stat-value{font-size:22px;font-weight:700;margin-top:4px}
+
+/* Map Screen */
+.map-placeholder{height:220px;background:linear-gradient(135deg,#e3f2fd,#bbdefb);border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin-bottom:16px;position:relative;overflow:hidden}
+.map-placeholder .icon{font-size:48px;margin-bottom:8px}
+.map-placeholder .coords{font-size:12px;color:var(--gray)}
+.map-placeholder .polyline{position:absolute;top:0;left:0;right:0;bottom:0}
+.map-controls{display:flex;gap:8px;margin-top:12px}
+.map-btn{padding:12px 24px;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer}
+.map-btn.primary{background:var(--primary);color:#fff}
+.map-btn.secondary{background:var(--light);color:var(--gray)}
+
+/* Location History */
+.location-item{display:flex;align-items:center;gap:12px;padding:12px;border-bottom:1px solid var(--light)}
+.location-item .icon{width:36px;height:36px;background:#e3f2fd;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.location-item .info{flex:1}
+.location-item .time{font-size:11px;color:var(--gray)}
+
+/* Cloud Screen */
+.sync-status-card{background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;border-radius:16px;padding:20px;margin-bottom:16px}
+.sync-status-card .title{font-size:14px;opacity:0.9}
+.sync-status-card .value{font-size:28px;font-weight:700;margin-top:4px}
+.sync-status-card .detail{font-size:12px;opacity:0.8;margin-top:8px}
+.sync-status-card .success-rate{display:flex;align-items:center;gap:8px;margin-top:12px}
+.sync-status-card .bar{flex:1;height:6px;background:rgba(255,255,255,0.3);border-radius:3px;overflow:hidden}
+.sync-status-card .bar-fill{height:100%;background:#fff;border-radius:3px}
+
+.sync-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px}
+.sync-btn{padding:16px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;border:none;display:flex;flex-direction:column;align-items:center;gap:6px}
+.sync-btn.sync{background:var(--success);color:#fff}
+.sync-btn.upload{background:var(--primary);color:#fff}
+.sync-btn .icon{font-size:24px}
+
+.log-box{background:#1a1a1a;color:#00ff00;padding:14px;border-radius:12px;font-family:monospace;font-size:11px;max-height:180px;overflow-y:auto}
+
+/* Bottom Navigation */
+.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--card);border-top:1px solid var(--light);display:flex;z-index:100;box-shadow:0 -4px 16px rgba(0,0,0,0.08)}
+.nav-item{flex:1;padding:12px 0;text-align:center;cursor:pointer;transition:all 0.2s}
+.nav-item .icon{font-size:22px;margin-bottom:4px}
+.nav-item .label{font-size:10px;color:var(--gray)}
+.nav-item.active .icon{color:var(--primary)}
+.nav-item.active .label{color:var(--primary);font-weight:600}
+
+/* Empty State */
+.empty-state{text-align:center;padding:32px;color:#999}
+.empty-state .icon{font-size:48px;margin-bottom:12px;opacity:0.5}
+
+/* Info Row */
+.info-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--light)}
+.info-row:last-child{border-bottom:none}
+.info-label{color:var(--gray);font-size:13px}
+.info-value{font-weight:600;font-size:13px}
+
+/* Login Form */
+.login-form .input{width:100%;padding:14px;border:1px solid var(--light);border-radius:12px;font-size:14px;margin-bottom:12px}
+.login-btn{width:100%;background:var(--primary);color:#fff;border:none;padding:16px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer}
+
+/* Animations */
+.fade-in{animation:fadeIn 0.3s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Mode Switcher -->
+  <div class="mode-switcher">
+    <button class="mode-btn customer" id="modeBtn" onclick="toggleMode()">👤 客戶模式</button>
+  </div>
+
+  <!-- Header -->
+  <div class="header">
+    <h1>LoRa Tool v3</h1>
+    <div class="status">
+      <span>🔗 已連線</span>
+      <span>📡 省電模式</span>
+      <span>⚡ 訊號良好</span>
+    </div>
+  </div>
+
+  <!-- Tab Contents -->
+  
+  <!-- Home Tab -->
+  <div id="home-tab" class="tab-content active fade-in">
+    <!-- Connection Status -->
+    <div class="connection-status">
+      <div class="dot"></div>
+      <span>已連接到 <b>LoRa-Gateway-01</b> | RSSI: -45 dBm</span>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span>📊 系統狀態</span>
+        <span style="color:var(--success);font-size:12px">● 正常運行</span>
+      </div>
+      <div class="card-body">
+        <div class="status-grid">
+          <div class="status-item success">
+            <div class="number">2</div>
+            <div class="label">在線設備</div>
+          </div>
+          <div class="status-item error">
+            <div class="number">1</div>
+            <div class="label">離線設備</div>
+          </div>
+          <div class="status-item warning">
+            <div class="number">1</div>
+            <div class="label">告警</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">⚡ 快速操作</div>
+      <div class="card-body">
+        <div class="actions-grid">
+          <button class="action-btn" onclick="switchTab('scan')">
+            <span class="icon">📡</span>
+            <span>掃描設備</span>
+          </button>
+          <button class="action-btn" onclick="switchTab('data')">
+            <span class="icon">💾</span>
+            <span>數據收發</span>
+          </button>
+          <button class="action-btn" onclick="switchTab('config')">
+            <span class="icon">⚙️</span>
+            <span>傳輸模式</span>
+          </button>
+          <button class="action-btn" onclick="switchTab('monitor')">
+            <span class="icon">📈</span>
+            <span>訊號監控</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span>🔔 告警 (1)</span>
+        <span style="font-size:11px;color:var(--gray)">包含已恢復</span>
+      </div>
+      <div class="card-body">
+        <div class="alert-item recovered">
+          <div class="alert-header">
+            <span class="alert-badge recovered">✓ 已恢復</span>
+            <span style="font-size:10px;color:var(--gray)">2分鐘前</span>
+          </div>
+          <div class="alert-title">LoRa-Node-03 訊號已恢復正常</div>
+          <div class="alert-desc">RSSI: -85 → -62 dBm</div>
+          <div class="alert-time">異常持續: 5分鐘 | 自動恢復</div>
+        </div>
+        <div class="alert-item warning">
+          <div class="alert-header">
+            <span class="alert-badge warning">⚠ 警告</span>
+            <span style="font-size:10px;color:var(--gray)">剛剛</span>
+          </div>
+          <div class="alert-title">LoRa-Node-04 訊號偏弱</div>
+          <div class="alert-desc">RSSI: -78 dBm | 建議檢查天線位置</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">📱 設備列表 (3)</div>
+      <div class="card-body" style="padding:0">
+        <div class="device-item">
+          <div class="device-info">
+            <div class="name">LoRa-Gateway-01</div>
+            <div class="details">主機 | 上次通訊: 1秒前</div>
+            <div class="signal">
+              <span style="font-size:11px;color:var(--success)">訊號優</span>
+              <div class="signal-bar" style="width:60px"></div>
+              <span style="font-size:11px;color:var(--gray)">-45 dBm</span>
+            </div>
+          </div>
+          <span class="device-status connected">已連線</span>
+        </div>
+        <div class="device-item">
+          <div class="device-info">
+            <div class="name">LoRa-Node-02</div>
+            <div class="details">感測器 | 上次通訊: 3秒前</div>
+            <div class="signal">
+              <span style="font-size:11px;color:var(--success)">訊號良</span>
+              <div class="signal-bar" style="width:45px"></div>
+              <span style="font-size:11px;color:var(--gray)">-62 dBm</span>
+            </div>
+          </div>
+          <span class="device-status connected">在線</span>
+        </div>
+        <div class="device-item">
+          <div class="device-info">
+            <div class="name">LoRa-Node-03</div>
+            <div class="details">感測器 | 離線 5 分鐘</div>
+            <div class="signal">
+              <span style="font-size:11px;color:var(--error)">無訊號</span>
+              <div class="signal-bar poor" style="width:10px"></div>
+            </div>
+          </div>
+          <span class="device-status offline">離線</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scan Tab -->
+  <div id="scan-tab" class="tab-content fade-in">
+    <div class="card">
+      <div class="card-body">
+        <input type="text" class="search-bar" placeholder="🔍 搜索設備名稱或 ID...">
+        <button class="scan-btn" id="scanBtn" onclick="toggleScan()">
+          <span>📡</span>
+          <span>開始掃描</span>
+        </button>
+        <div class="device-count">掃描中發現 <b>3</b> 個設備</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">📱 可用設備</div>
+      <div class="card-body" style="padding:0">
+        <div class="device-item">
+          <div class="device-info">
+            <div class="name">LoRa-Gateway-01</div>
+            <div class="details">Model: LG-01 | FW: v1.2.0</div>
+            <div class="signal">
+              <span style="font-size:11px;color:var(--success)">訊號優</span>
+              <div class="signal-bar" style="width:60px"></div>
+              <span style="font-size:11px;color:var(--gray)">-45 dBm | SNR: 12 dB</span>
+            </div>
+          </div>
+          <button class="device-status connected" onclick="connect(this)">已連線</button>
+        </div>
+        <div class="device-item">
+          <div class="device-info">
+            <div class="name">LoRa-Node-02</div>
+            <div class="details">Model: LN-02 | FW: v1.1.5</div>
+            <div class="signal">
+              <span style="font-size:11px;color:var(--success)">訊號良</span>
+              <div class="signal-bar" style="width:45px"></div>
+              <span style="font-size:11px;color:var(--gray)">-62 dBm | SNR: 8 dB</span>
+            </div>
+          </div>
+          <button class="device-status offline" onclick="connect(this)">連接</button>
+        </div>
+        <div class="device-item">
+          <div class="device-info">
+            <div class="name">LoRa-Node-03</div>
+            <div class="details">Model: LN-02 | FW: v1.1.5</div>
+            <div class="signal">
+              <span style="font-size:11px;color:var(--warning)">訊號弱</span>
+              <div class="signal-bar fair" style="width:25px"></div>
+              <span style="font-size:11px;color:var(--gray)">-85 dBm | SNR: 5 dB</span>
+            </div>
+          </div>
+          <button class="device-status offline" onclick="connect(this)">連接</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data Tab -->
+  <div id="data-tab" class="tab-content fade-in">
+    <div class="card">
+      <div class="card-header">📤 發送數據</div>
+      <div class="card-body">
+        <div class="input-group">
+          <label>數據內容</label>
+          <textarea class="text-input" id="txData" placeholder="輸入要發送的數據...">Hello LoRa!</textarea>
+        </div>
+        <div class="input-group">
+          <label>數據格式</label>
+          <div class="format-buttons">
+            <button class="format-btn active" onclick="setFormat(this)">文字</button>
+            <button class="format-btn" onclick="setFormat(this)">十六進位</button>
+            <button class="format-btn" onclick="setFormat(this)">Base64</button>
+          </div>
+        </div>
+        <button class="send-btn" onclick="sendData()">📤 發送數據</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span>📥 接收數據</span>
+        <button style="font-size:11px;color:var(--primary);background:none;border:none;cursor:pointer" onclick="clearRx()">清除</button>
+      </div>
+      <div class="card-body">
+        <div class="rx-box" id="rxBox">[13:45:12] RX: ACK
+[13:45:15] RX: DATA: Temperature=25.6°C
+[13:45:18] RX: DATA: Humidity=68%
+[13:45:22] RX: ACK</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">📊 傳輸統計</div>
+      <div class="card-body">
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-label">發送</div>
+            <div class="stat-value" style="color:var(--primary)">156</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">接收</div>
+            <div class="stat-value" style="color:var(--success)">142</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">成功率</div>
+            <div class="stat-value" style="color:var(--success)">98%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Config Tab - Customer Mode -->
+  <div id="config-tab" class="tab-content fade-in">
+    <!-- Customer Mode -->
+    <div id="customerConfig">
+      <div class="card">
+        <div class="card-header">📡 傳輸模式</div>
+        <div class="card-body">
+          <div class="mode-selector">
+            <div class="mode-card" onclick="setMode(this, 'power-saving')">
+              <div class="icon">🔋</div>
+              <div class="title">省電模式</div>
+              <div class="desc">最長距離 | 最慢速度</div>
+              <div class="stats">
+                <span>距離: >10 km</span>
+                <span>電池: >30 天</span>
+              </div>
+            </div>
+            <div class="mode-card active" onclick="setMode(this, 'balanced')">
+              <div class="icon">⚖️</div>
+              <div class="title">平衡模式</div>
+              <div class="desc">中等距離 | 中等速度</div>
+              <div class="stats">
+                <span>距離: ~5 km</span>
+                <span>電池: ~15 天</span>
+              </div>
+            </div>
+            <div class="mode-card" onclick="setMode(this, 'realtime')">
+              <div class="icon">⚡</div>
+              <div class="title">即時模式</div>
+              <div class="desc">最短距離 | 最快速度</div>
+              <div class="stats">
+                <span>距離: ~2 km</span>
+                <span>電池: ~7 天</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">📻 頻道設置</div>
+        <div class="card-body">
+          <div class="freq-buttons">
+            <button class="freq-btn active" onclick="setFreq(this)">433 MHz</button>
+            <button class="freq-btn" onclick="setFreq(this)">470 MHz</button>
+            <button class="freq-btn" onclick="setFreq(this)">868 MHz</button>
+            <button class="freq-btn" onclick="setFreq(this)">915 MHz</button>
+          </div>
+          <p style="font-size:11px;color:var(--gray);margin-top:12px">💡 選擇與您的設備相同頻道</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">📋 當前配置</div>
+        <div class="card-body">
+          <div class="info-row">
+            <span class="info-label">傳輸模式</span>
+            <span class="info-value">平衡模式</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">頻道</span>
+            <span class="info-value">433 MHz</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">發射功率</span>
+            <span class="info-value">20 dBm (100mW)</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">預估距離</span>
+            <span class="info-value" style="color:var(--success)">~5 公里</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Engineer Mode (Hidden by default) -->
+    <div id="engineerConfig" style="display:none">
+      <div class="card">
+        <div class="card-header">📊 擴展因子 (SF)</div>
+        <div class="card-body">
+          <div class="sf-grid">
+            <button class="sf-btn" onclick="setSF(this)">6</button>
+            <button class="sf-btn" onclick="setSF(this)">7</button>
+            <button class="sf-btn active" onclick="setSF(this)">8</button>
+            <button class="sf-btn" onclick="setSF(this)">9</button>
+            <button class="sf-btn" onclick="setSF(this)">10</button>
+            <button class="sf-btn" onclick="setSF(this)">11</button>
+            <button class="sf-btn" onclick="setSF(this)">12</button>
+          </div>
+          <p style="font-size:11px;color:var(--gray);margin-top:12px">SF 越高 = 距離越遠，速度越慢</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">⚡ 發射功率</div>
+        <div class="card-body">
+          <div class="power-value">20 dBm</div>
+          <input type="range" class="power-slider" min="2" max="20" value="20">
+          <div class="power-range">
+            <span>2 dBm (1.6mW)</span>
+            <span>20 dBm (100mW)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">📋 工程參數</div>
+        <div class="card-body">
+          <div class="info-row">
+            <span class="info-label">擴展因子 (SF)</span>
+            <span class="info-value">SF8</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">帶寬 (BW)</span>
+            <span class="info-value">125 kHz</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">編碼率 (CR)</span>
+            <span class="info-value">4/5</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">發射功率</span>
+            <span class="info-value">20 dBm</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monitor Tab -->
+  <div id="monitor-tab" class="tab-content fade-in">
+    <div class="card">
+      <div class="card-body">
+        <button class="scan-btn" style="background:var(--success)" id="monitorBtn" onclick="toggleMonitor()">
+          <span>▶️</span>
+          <span>開始監控</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">📊 即時訊號</div>
+      <div class="card-body">
+        <div class="signal-grid">
+          <div class="signal-box">
+            <div class="signal-value" style="color:var(--success)" id="rssiValue">-45</div>
+            <div class="signal-label">訊號強度 (RSSI)</div>
+          </div>
+          <div class="signal-box">
+            <div class="signal-value" style="color:var(--primary)" id="snrValue">12</div>
+            <div class="signal-label">訊噪比 (SNR)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-container">
+      <div class="chart-header">
+        <span class="chart-title">📈 RSSI 趨勢圖</span>
+        <span class="chart-y-axis">dBm: 0 ~ -100</span>
+      </div>
+      <div class="chart-box" id="rssiChart">
+        <div class="chart-bar excellent" style="height:75%"></div>
+        <div class="chart-bar excellent" style="height:70%"></div>
+        <div class="chart-bar good" style="height:65%"></div>
+        <div class="chart-bar excellent" style="height:80%"></div>
+        <div class="chart-bar good" style="height:60%"></div>
+        <div class="chart-bar good" style="height:68%"></div>
+        <div class="chart-bar excellent" style="height:82%"></div>
+        <div class="chart-bar good" style="height:65%"></div>
+        <div class="chart-bar fair" style="height:55%"></div>
+        <div class="chart-bar good" style="height:72%"></div>
+        <div class="chart-bar excellent" style="height:78%"></div>
+        <div class="chart-bar good" style="height:68%"></div>
+      </div>
+      <div class="chart-x-axis">
+        <span>-60s</span>
+        <span>-45s</span>
+        <span>-30s</span>
+        <span>-15s</span>
+        <span>現在</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">📊 統計數據</div>
+      <div class="card-body">
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-label">平均</div>
+            <div class="stat-value" style="color:var(--primary)" id="avgRssi">-62</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">最弱</div>
+            <div class="stat-value" style="color:var(--error)" id="minRssi">-85</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">最強</div>
+            <div class="stat-value" style="color:var(--success)" id="maxRssi">-45</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Map Tab -->
+  <div id="map-tab" class="tab-content fade-in">
+    <div class="card">
+      <div class="card-header">📍 GPS 定位</div>
+      <div class="card-body">
+        <div class="map-placeholder">
+          <svg class="polyline" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <polyline fill="none" stroke="#1976d2" stroke-width="3" points="10,80 30,60 50,70 70,40 90,30"/>
+            <circle cx="10" cy="80" r="3" fill="#43a047"/>
+            <circle cx="50" cy="70" r="3" fill="#1976d2"/>
+            <circle cx="90" cy="30" r="4" fill="#e53935"/>
+          </svg>
+          <div class="icon" style="position:relative;z-index:1">🗺️</div>
+          <div style="position:relative;z-index:1">Lat: 25.0330 | Lng: 121.5650</div>
+        </div>
+        <div class="map-controls">
+          <button class="map-btn primary">📍 目前位置</button>
+          <button class="map-btn secondary">🚶 模擬移動</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">📍 位置資訊</div>
+      <div class="card-body">
+        <div class="info-row">
+          <span class="info-label">緯度</span>
+          <span class="info-value">25.033000° N</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">經度</span>
+          <span class="info-value">121.565000° E</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">精度</span>
+          <span class="info-value">±15 公尺</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">移動距離</span>
+          <span class="info-value">1.2 公里</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">📝 軌跡歷史</div>
+      <div class="card-body" style="padding:0">
+        <div class="location-item">
+          <div class="icon">📍</div>
+          <div class="info">
+            <div style="font-weight:600">終點</div>
+            <div style="font-size:12px;color:var(--gray)">25.0330, 121.5650</div>
+          </div>
+          <div class="time">剛剛</div>
+        </div>
+        <div class="location-item">
+          <div class="icon">🔵</div>
+          <div class="info">
+            <div style="font-weight:600">中途點</div>
+            <div style="font-size:12px;color:var(--gray)">25.0320, 121.5640</div>
+          </div>
+          <div class="time">5分鐘前</div>
+        </div>
+        <div class="location-item">
+          <div class="icon">🟢</div>
+          <div class="info">
+            <div style="font-weight:600">起點</div>
+            <div style="font-size:12px;color:var(--gray)">25.0300, 121.5600</div>
+          </div>
+          <div class="time">10分鐘前</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cloud Tab -->
+  <div id="cloud-tab" class="tab-content fade-in">
+    <div class="sync-status-card">
+      <div class="title">☁️ 雲端同步狀態</div>
+      <div class="value">已連線</div>
+      <div class="detail">上次同步: 2 分鐘前 | user@example.com</div>
+      <div class="success-rate">
+        <span>同步成功率</span>
+        <div class="bar">
+          <div class="bar-fill" style="width:98%"></div>
+        </div>
+        <span>98%</span>
+      </div>
+    </div>
+
+    <div class="sync-actions">
+      <button class="sync-btn sync" onclick="syncData()">
+        <span class="icon">🔄</span>
+        <span>立即同步</span>
+      </button>
+      <button class="sync-btn upload" onclick="uploadData()">
+        <span class="icon">📤</span>
+        <span>上傳備份</span>
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="card-header">📊 同步統計</div>
+      <div class="card-body">
+        <div class="info-row">
+          <span class="info-label">今日同步</span>
+          <span class="info-value">24 次</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">成功次數</span>
+          <span class="info-value" style="color:var(--success)">23 次</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">失敗次數</span>
+          <span class="info-value" style="color:var(--error)">1 次</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">數據量</span>
+          <span class="info-value">1.2 MB</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">📋 操作日誌</div>
+      <div class="card-body">
+        <div class="log-box">[13:40:12] ☁️ 雲端連線成功
+[13:40:15] 📤 上傳配置完成
+[13:40:18] 🔄 同步完成 (23 條記錄)
+[13:40:22] ✅ 備份已創建</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Navigation -->
+  <div class="bottom-nav">
+    <div class="nav-item active" onclick="switchTab('home')">
+      <div class="icon">🏠</div>
+      <div class="label">首頁</div>
+    </div>
+    <div class="nav-item" onclick="switchTab('scan')">
+      <div class="icon">📡</div>
+      <div class="label">掃描</div>
+    </div>
+    <div class="nav-item" onclick="switchTab('data')">
+      <div class="icon">💾</div>
+      <div class="label">數據</div>
+    </div>
+    <div class="nav-item" onclick="switchTab('config')">
+      <div class="icon">⚙️</div>
+      <div class="label">配置</div>
+    </div>
+    <div class="nav-item" onclick="switchTab('monitor')">
+      <div class="icon">📈</div>
+      <div class="label">監控</div>
+    </div>
+    <div class="nav-item" onclick="switchTab('map')">
+      <div class="icon">📍</div>
+      <div class="label">地圖</div>
+    </div>
+    <div class="nav-item" onclick="switchTab('cloud')">
+      <div class="icon">☁️</div>
+      <div class="label">雲端</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let isEngineerMode = false;
+let isMonitoring = false;
+let isScanning = false;
+
+// Mode Toggle
+function toggleMode() {
+  isEngineerMode = !isEngineerMode;
+  const btn = document.getElementById('modeBtn');
+  const customerConfig = document.getElementById('customerConfig');
+  const engineerConfig = document.getElementById('engineerConfig');
+  
+  if (isEngineerMode) {
+    btn.textContent = '🧪 工程模式';
+    btn.className = 'mode-btn engineer';
+    customerConfig.style.display = 'none';
+    engineerConfig.style.display = 'block';
+  } else {
+    btn.textContent = '👤 客戶模式';
+    btn.className = 'mode-btn customer';
+    customerConfig.style.display = 'block';
+    engineerConfig.style.display = 'none';
+  }
+}
+
+// Tab Switching
+function switchTab(tabName) {
+  document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+  document.getElementById(tabName + '-tab').classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+}
+
+// Scan
+function toggleScan() {
+  isScanning = !isScanning;
+  const btn = document.getElementById('scanBtn');
+  if (isScanning) {
+    btn.innerHTML = '<span>⏳</span><span>掃描中...</span>';
+    btn.classList.add('scanning');
+  } else {
+    btn.innerHTML = '<span>📡</span><span>開始掃描</span>';
+    btn.classList.remove('scanning');
+  }
+}
+
+// Connect
+function connect(btn) {
+  btn.textContent = '連接中...';
+  btn.className = 'device-status connecting';
+  setTimeout(() => {
+    btn.textContent = '已連線';
+    btn.className = 'device-status connected';
+  }, 1500);
+}
+
+// Format
+function setFormat(btn) {
+  document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// Mode Selection (Customer)
+function setMode(card, mode) {
+  document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('active'));
+  card.classList.add('active');
+}
+
+// Frequency
+function setFreq(btn) {
+  document.querySelectorAll('.freq-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// SF (Engineer)
+function setSF(btn) {
+  document.querySelectorAll('.sf-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// Send Data
+function sendData() {
+  const rxBox = document.getElementById('rxBox');
+  const time = new Date().toLocaleTimeString('zh-TW', {hour12: false});
+  rxBox.textContent += `\n[${time}] TX: ${document.getElementById('txData').value}`;
+  rxBox.textContent += `\n[${time}] RX: ACK`;
+  rxBox.scrollTop = rxBox.scrollHeight;
+}
+
+// Clear RX
+function clearRx() {
+  document.getElementById('rxBox').textContent = '';
+}
+
+// Monitor
+function toggleMonitor() {
+  isMonitoring = !isMonitoring;
+  const btn = document.getElementById('monitorBtn');
+  if (isMonitoring) {
+    btn.innerHTML = '<span>⏹️</span><span>停止監控</span>';
+    btn.style.background = 'var(--error)';
+    startMonitoring();
+  } else {
+    btn.innerHTML = '<span>▶️</span><span>開始監控</span>';
+    btn.style.background = 'var(--success)';
+  }
+}
+
+function startMonitoring() {
+  if (!isMonitoring) return;
+  
+  // Update RSSI
+  const rssi = Math.round(-45 - Math.random() * 40);
+  const snr = Math.round(5 + Math.random() * 10);
+  document.getElementById('rssiValue').textContent = rssi;
+  document.getElementById('snrValue').textContent = snr;
+  
+  // Update Chart
+  const chart = document.getElementById('rssiChart');
+  const bars = chart.querySelectorAll('.chart-bar');
+  bars.forEach(bar => {
+    const height = 50 + Math.random() * 40;
+    bar.style.height = height + '%';
+    if (height > 70) bar.className = 'chart-bar excellent';
+    else if (height > 55) bar.className = 'chart-bar good';
+    else bar.className = 'chart-bar fair';
+  });
+  
+  setTimeout(startMonitoring, 1000);
+}
+
+// Cloud Sync
+function syncData() {
+  alert('🔄 同步完成！');
+}
+
+function uploadData() {
+  alert('📤 備份已上傳！');
+}
+
+console.log('LoRa Tool v3 商業版載入完成');
+</script>
+</body>
+</html>

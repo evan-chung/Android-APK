@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>LoRaTool v7.0 - Web Reference</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F8F9FA;color:#202124;min-height:100vh}
+.hd{background:#4285F4;padding:16px 16px 24px;color:#fff;padding-top:48px}
+.hd h1{font-size:22px;font-weight:700}
+.hd p{font-size:12px;opacity:.75;margin-top:4px}
+.kpi{display:flex;margin:-24px 12px 12px}
+.kpi>div{flex:1;background:#fff;border-radius:12px;padding:12px;margin:0 4px;box-shadow:0 1px 3px rgba(0,0,0,.12);text-align:center}
+.kpi .v{font-size:22px;font-weight:700;color:#202124}
+.kpi .l{font-size:10px;color:#5F6368;margin-top:2px}
+.tab-bar{display:flex;background:#fff;border-bottom:1px solid #E8EAED;overflow-x:auto}
+.tab{padding:12px 16px;font-size:13px;font-weight:500;color:#5F6368;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;flex-shrink:0}
+.tab.active{color:#4285F4;border-bottom-color:#4285F4;font-weight:600}
+.page{display:none;padding:12px}
+.page.active{display:block}
+.dev-card{background:#fff;border-radius:12px;padding:14px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.08);cursor:pointer}
+.dev-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.dn{font-size:16px;font-weight:600;color:#202124}
+.did{font-size:11px;color:#5F6368;font-family:monospace;margin-top:2px}
+.status-row{display:flex;align-items:center;margin-top:8px;gap:8px}
+.badge{padding:3px 8px;border-radius:12px;font-size:10px;font-weight:600;color:#fff}
+.ok{background:#34A853}.err{background:#EA4335}.warn{background:#FBBC04}.pri{background:#4285F4}
+.btns{display:flex;gap:8px;margin:8px 12px 12px}
+.btn{padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;text-align:center;flex:1;color:#fff}
+.bp{background:#4285F4}.bo{background:#34A853}.bd{background:#EA4335}
+.section{margin-bottom:16px}
+.sec-hdr{display:flex;justify-content:space-between;align-items:center;padding:12px 12px 8px}
+.sec-hdr span{font-size:14px;font-weight:700;color:#202124}
+.param{background:#fff;border-radius:8px;padding:12px;margin:4px 0;border-bottom:1px solid #E8EAED;display:flex;align-items:center}
+.param:last-child{border-bottom:none}
+.lbl{font-size:13px;color:#5F6368;flex:1}
+.val{font-size:13px;font-weight:500;font-family:monospace;color:#202124;text-align:right;flex:1.5}
+.pending{background:#FFF3E0}
+input{padding:8px;border:1.5px solid #DADCE0;border-radius:8px;font-size:12px;flex:1;margin-right:6px;font-family:monospace}
+select{padding:8px;border:1.5px solid #DADCE0;border-radius:8px;font-size:12px;flex:1;margin-right:6px}
+.ctrl{background:#fff;border-radius:8px;padding:12px;margin:4px 0}
+.log{background:#1a1a2e;border-radius:8px;padding:10px;font-family:monospace;font-size:10px;color:#00FF88;max-height:160px;overflow-y:auto;white-space:pre;line-height:16px}
+.log2{color:#00BFFF}
+.con-header{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.empty{text-align:center;padding:40px;color:#5F6368;font-size:14px}
+.alert-item{background:#fff;border-radius:8px;padding:12px;margin:4px 0;border-left:4px solid #EA4335}
+.alert-item.info{border-left-color:#4285F4}
+.alert-item.warn{border-left-color:#FBBC04}
+.alert-msg{font-size:13px;color:#202124}
+.alert-ts{font-size:10px;color:#5F6368;margin-top:4px}
+.ref-box{background:#fff;border-radius:12px;padding:14px;margin-bottom:8px}
+.ref-hdr{font-weight:700;font-size:14px;margin-bottom:8px;color:#202124}
+.ref-item{font-size:12px;color:#202124;padding:2px 0}
+.toggle-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #E8EAED}
+.toggle-row:last-child{border-bottom:none}
+.loading{text-align:center;padding:60px;font-size:16px;color:#5F6368}
+.gps-modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;justify-content:center;align-items:center;z-index:1000}
+.gps-modal.active{display:flex}
+.gps-content{background:#fff;border-radius:16px;padding:20px;width:80%;max-width:320px}
+.gps-title{font-size:18px;font-weight:700;margin-bottom:12px}
+.gps-text{font-size:14px;color:#5F6368;margin:8px 0}
+.note{background:#E8F0FE;border-radius:8px;padding:12px;margin:12px;font-size:12px;color:#1967D2}
+</style>
+</head>
+<body>
+
+<div class="note">
+  <strong>⚠️ Web 版本僅供 UI 參考</strong><br>
+  Web Bluetooth API 在大部分瀏覽器/設備上不支援。<br>
+  請使用 Android APK 進行實際 BLE 操作。
+</div>
+
+<div class="hd" id="header">
+  <h1>LoRaTool <span style="font-size:12px;opacity:.7">v7.0</span></h1>
+  <p id="headerSub">BLE: PoweredOn | Connect via Bluetooth</p>
+</div>
+
+<div class="kpi">
+  <div><div class="v" id="kpiConn">-</div><div class="l">Status</div></div>
+  <div><div class="v" id="kpiBat">-</div><div class="l">Battery%</div></div>
+  <div><div class="v" id="kpiDev">0</div><div class="l">Devices</div></div>
+  <div onclick="showGpsInfo()"><div class="v">📍</div><div class="l">GPS</div></div>
+</div>
+
+<div class="tab-bar">
+  <div class="tab active" data-page="devices">Devices</div>
+  <div class="tab" data-page="control">Control</div>
+  <div class="tab" data-page="console">Console</div>
+</div>
+
+<!-- DEVICES PAGE -->
+<div class="page active" id="page-devices">
+  <div class="btns">
+    <button class="btn bp" onclick="scanDevices()" id="scanBtn">Scan Devices</button>
+    <button class="btn bo" onclick="clearDevices()">Clear All</button>
+  </div>
+  <div id="devList"><div class="empty">No devices. Tap Scan to find nearby LoRa/MOKO devices.</div></div>
+</div>
+
+<!-- CONTROL PAGE -->
+<div class="page" id="page-control">
+  <div id="ctrlEmpty" class="empty">Select a device from Devices tab first.</div>
+  <div id="ctrlContent" style="display:none">
+    <div class="btns">
+      <button class="btn bo" onclick="readAll()">Read All</button>
+      <button class="btn bp" onclick="showGpsInfo()">Get GPS</button>
+    </div>
+    <div id="sections"></div>
+  </div>
+</div>
+
+<!-- CONSOLE PAGE -->
+<div class="page" id="page-console">
+  <div class="con-header">
+    <button class="btn bp" onclick="clearLogs()">Clear Logs</button>
+  </div>
+  <div class="log" id="consoleLog">-- Logs will appear here --</div>
+</div>
+
+<!-- GPS Modal -->
+<div class="gps-modal" id="gpsModal">
+  <div class="gps-content">
+    <div class="gps-title">GPS Location</div>
+    <div class="gps-text">Latitude: <span id="gpsLat">--</span></div>
+    <div class="gps-text">Longitude: <span id="gpsLng">--</span></div>
+    <div class="gps-text">Accuracy: <span id="gpsAcc">--</span>m</div>
+    <button class="btn bp" onclick="hideGpsModal()" style="margin-top:12px">Close</button>
+  </div>
+</div>
+
+<script>
+const SVC_UUID = '0000aa00-0000-1000-8000-00805f9b34fb';
+const CHAR_UUID = '0000aa02-0000-1000-8000-00805f9b34fb';
+
+const CMDS = [
+  {k:0x10,l:'Firmware Version',s:'System',d:'read',t:'hex'},
+  {k:0x11,l:'MAC Address',s:'System',d:'read',t:'hex'},
+  {k:0x12,l:'Battery Level',s:'System',d:'read',t:'u8'},
+  {k:0x13,l:'Device Model',s:'System',d:'read',t:'str'},
+  {k:0x14,l:'Serial Number',s:'System',d:'read',t:'str'},
+  {k:0x15,l:'Hardware Version',s:'System',d:'read',t:'str'},
+  {k:0x1A,l:'Power On Mode',s:'Mode',d:'both',t:'u8',o:['Normal','Test','Bootloader']},
+  {k:0x1B,l:'Work Mode',s:'Mode',d:'both',t:'u8'},
+  {k:0x1C,l:'Position Strategy',s:'Mode',d:'both',t:'u8'},
+  {k:0x20,l:'Heartbeat (min)',s:'Mode',d:'both',t:'u16'},
+  {k:0x22,l:'Time Zone',s:'Mode',d:'both',t:'u8'},
+  {k:0x50,l:'OTAA/ABP Mode',s:'LoRaWAN',d:'both',t:'u8',o:['ABP','OTAA']},
+  {k:0x51,l:'DevEUI',s:'LoRaWAN',d:'both',t:'hex',len:8},
+  {k:0x52,l:'AppEUI',s:'LoRaWAN',d:'both',t:'hex',len:8},
+  {k:0x53,l:'AppKey',s:'LoRaWAN',d:'both',t:'hex',len:16},
+  {k:0x54,l:'DevAddr',s:'LoRaWAN',d:'both',t:'hex',len:4},
+  {k:0x55,l:'AppSKey',s:'LoRaWAN',d:'both',t:'hex',len:16},
+  {k:0x56,l:'NwkSKey',s:'LoRaWAN',d:'both',t:'hex',len:16},
+  {k:0x57,l:'Region',s:'LoRaWAN',d:'both',t:'u8',o:['AS923','AU915','CN470','CN779','EU433','EU868','KR920','IN865','US915','RU864']},
+  {k:0x58,l:'Network Status',s:'LoRaWAN',d:'read',t:'u8'},
+  {k:0x59,l:'Join Retry',s:'LoRaWAN',d:'both',t:'u8'},
+  {k:0x5A,l:'ADR Enable',s:'LoRaWAN',d:'both',t:'u8',o:['OFF','ON']},
+  {k:0x5B,l:'Public Network',s:'LoRaWAN',d:'both',t:'u8',o:['OFF','ON']},
+  {k:0x5C,l:'Duty Cycle',s:'LoRaWAN',d:'both',t:'u8',o:['OFF','ON']},
+  {k:0x5D,l:'Join Delay (s)',s:'LoRaWAN',d:'both',t:'u8'},
+  {k:0x5E,l:'RX1 Delay (s)',s:'LoRaWAN',d:'both',t:'u8'},
+  {k:0x5F,l:'RX2 DR',s:'LoRaWAN',d:'both',t:'u8'},
+  {k:0x60,l:'Channel CH1/CH2',s:'Radio',d:'both',t:'ch'},
+  {k:0x61,l:'Data Rate (DR)',s:'Radio',d:'both',t:'u8',o:['DR0 SF12','DR1 SF11','DR2 SF10','DR3 SF9','DR4 SF8','DR5 SF7','DR6 SF7B','DR7 SF7B']},
+  {k:0x62,l:'TX Power (dBm)',s:'Radio',d:'both',t:'u8'},
+  {k:0x63,l:'Duty Cycle',s:'Radio',d:'both',t:'u8',o:['OFF','ON']},
+  {k:0x64,l:'Channel Mask',s:'Radio',d:'both',t:'hex',len:8},
+  {k:0x65,l:'CH Enable 1-8',s:'Radio',d:'both',t:'u8'},
+  {k:0x66,l:'CH Enable 9-16',s:'Radio',d:'both',t:'u8'},
+  {k:0x67,l:'Sub-band',s:'Radio',d:'both',t:'u8',o:['0','1','2','3','4','5','6','7','8']},
+  {k:0x70,l:'Uplink Strategy',s:'Uplink',d:'both',t:'uplink'},
+  {k:0x71,l:'Confirmed Mode',s:'Uplink',d:'both',t:'u8',o:['Unconfirmed','Confirmed']},
+  {k:0x76,l:'Retry Count',s:'Uplink',d:'both',t:'u8',o:['0','1','2','3']},
+  {k:0x72,l:'App Port',s:'Uplink',d:'both',t:'u8'},
+  {k:0x73,l:'FDR',s:'Uplink',d:'both',t:'u8'},
+  {k:0x74,l:'ADR Ack Limit',s:'Uplink',d:'both',t:'u8'},
+  {k:0x75,l:'ADR Ack Delay',s:'Uplink',d:'both',t:'u8'},
+  {k:0x83,l:'Auto Rejoin',s:'Network',d:'both',t:'u8',o:['OFF','ON']},
+  {k:0x84,l:'Class Mode',s:'Network',d:'both',t:'u8',o:['Class A','Class B','Class C']},
+  {k:0x80,l:'Network Check Int',s:'Network',d:'both',t:'u8'},
+  {k:0x81,l:'Time Sync Int',s:'Network',d:'both',t:'u8'},
+  {k:0x82,l:'Reconnect Int',s:'Network',d:'both',t:'u16'},
+  {k:0x40,l:'Offline Location',s:'Position',d:'both',t:'u8',o:['OFF','ON']},
+  {k:0x41,l:'GPS Cycle (sec)',s:'Position',d:'both',t:'u16'},
+  {k:0x42,l:'Motion Detect',s:'Position',d:'both',t:'u8',o:['OFF','ON']},
+  {k:0x43,l:'WiFi Position',s:'Position',d:'both',t:'u8',o:['OFF','ON']},
+  {k:0x44,l:'GPS Enable',s:'Position',d:'both',t:'u8',o:['OFF','ON']},
+  {k:0x90,l:'SOS Enable',s:'SOS',d:'both',t:'u8',o:['OFF','ON']},
+  {k:0x91,l:'SOS Mode',s:'SOS',d:'both',t:'u8'},
+  {k:0x92,l:'SOS Interval (s)',s:'SOS',d:'both',t:'u16'},
+  {k:0x93,l:'SOS Count',s:'SOS',d:'both',t:'u8'},
+  {k:0xA0,l:'BLE Adv Name',s:'BLE',d:'both',t:'str'},
+  {k:0xA1,l:'Adv Interval',s:'BLE',d:'both',t:'u8'},
+  {k:0xA2,l:'Adv TX Power',s:'BLE',d:'both',t:'u8'},
+  {k:0xA3,l:'Adv Timeout (s)',s:'BLE',d:'both',t:'u8'},
+  {k:0xA4,l:'Password Verify',s:'BLE',d:'both',t:'u8',o:['OFF','ON']},
+  {k:0xB0,l:'Low Power %',s:'Device',d:'both',t:'u8'},
+  {k:0xB1,l:'Low Power Payload',s:'Device',d:'both',t:'u8',o:['OFF','ON']},
+  {k:0xB2,l:'Buzzer Sound',s:'Device',d:'both',t:'u8'},
+  {k:0xB3,l:'Vibration Int.',s:'Device',d:'both',t:'u8'},
+  {k:0xD0,l:'Reboot',s:'Control',d:'write',t:'u8'},
+  {k:0xD1,l:'Factory Reset',s:'Control',d:'write',t:'u8'},
+  {k:0x01,l:'Change Password',s:'Control',d:'write',t:'pwd'},
+];
+
+const SECTIONS = [...new Set(CMDS.map(c => c.s))];
+let state = { device: null, connected: false, vals: {}, pending: {}, devices: [], logs: [] };
+
+// Navigation
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('page-' + tab.dataset.page).classList.add('active');
+  });
+});
+
+function addLog(type, msg) {
+  const ts = new Date().toLocaleTimeString();
+  state.logs.push({ts, type, msg});
+  if (state.logs.length > 50) state.logs.shift();
+  updateConsole();
+}
+
+function updateConsole() {
+  const el = document.getElementById('consoleLog');
+  el.textContent = state.logs.map(l => `${l.ts} [${l.type.toUpperCase()}] ${l.msg}`).join('\n') || '-- Logs will appear here --';
+}
+
+function clearLogs() { state.logs = []; updateConsole(); }
+
+function toHex(bytes) { return Array.from(bytes).map(b => b.toString(16).padStart(2,'0').toUpperCase()).join(' '); }
+
+// GPS Modal
+function showGpsInfo() {
+  if (!navigator.geolocation) { alert('Geolocation not supported'); return; }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      document.getElementById('gpsLat').textContent = pos.coords.latitude.toFixed(6);
+      document.getElementById('gpsLng').textContent = pos.coords.longitude.toFixed(6);
+      document.getElementById('gpsAcc').textContent = pos.coords.accuracy?.toFixed(2) || '--';
+      document.getElementById('gpsModal').classList.add('active');
+      addLog('gps', `Lat: ${pos.coords.latitude.toFixed(6)}, Lng: ${pos.coords.longitude.toFixed(6)}`);
+    },
+    err => { alert('GPS error: ' + err.message); addLog('error', 'GPS: ' + err.message); }
+  );
+}
+function hideGpsModal() { document.getElementById('gpsModal').classList.remove('active'); }
+
+// BLE Functions
+async function scanDevices() {
+  if (!navigator.bluetooth) { alert('Web Bluetooth not supported. Use Chrome/Edge on Android.'); return; }
+  try {
+    document.getElementById('scanBtn').textContent = 'Scanning...';
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [{namePrefix: 'MOKO'}, {namePrefix: 'LoRa'}, {namePrefix: 'LW'}]
+    });
+    addLog('info', 'Found: ' + (device.name || 'Unknown'));
+    saveDevice({id: device.id, name: device.name || 'Unknown', rssi: null});
+  } catch(e) { addLog('error', 'Scan: ' + e.message); }
+  document.getElementById('scanBtn').textContent = 'Scan Devices';
+}
+
+async function connectDevice(id, name) {
+  if (!navigator.bluetooth) { alert('Web Bluetooth not supported'); return; }
+  try {
+    addLog('info', 'Connecting to ' + name + '...');
+    const device = await navigator.bluetooth.getDevice({id});
+    const server = await device.gatt.connect();
+    const svc = await server.getPrimaryService(SVC_UUID);
+    const char = await svc.getCharacteristic(CHAR_UUID);
+    await char.startNotifications();
+    char.addEventListener('characteristicvaluechanged', onNotify);
+    state.device = device; state.connected = true;
+    document.getElementById('headerSub').textContent = 'Connected: ' + name;
+    document.getElementById('kpiConn').textContent = '✓';
+    document.getElementById('ctrlEmpty').style.display = 'none';
+    document.getElementById('ctrlContent').style.display = 'block';
+    addLog('success', 'Connected to ' + name);
+    renderSections();
+    readAll();
+  } catch(e) { addLog('error', 'Connect: ' + e.message); }
+}
+
+function onNotify(e) {
+  const bytes = new Uint8Array(e.target.value.buffer);
+  if (bytes.length < 4 || bytes[0] !== 0xED) return;
+  const key = bytes[2], len = bytes[3];
+  const data = bytes.slice(4, 4+len);
+  const val = Array.from(data).map(b => b.toString(16).padStart(2,'0').toUpperCase()).join('');
+  state.vals[key] = val;
+  if (key === 0x12) {
+    const bv = parseInt(val, 16);
+    document.getElementById('kpiBat').textContent = (bv >= 0 && bv <= 100) ? bv + '%' : '-';
+  }
+  renderParam(key);
+  addLog('rx', `Key 0x${key.toString(16).toUpperCase()}: ${val}`);
+}
+
+async function bleWrite(bytes) {
+  if (!state.device) return;
+  addLog('tx', toHex(bytes));
+  // Web Bluetooth write would go here
+}
+
+function readAll() {
+  CMDS.filter(c => c.d === 'read' || c.d === 'both').forEach(c => {
+    bleWrite([0xED, 0x00, c.k, 0x00]);
+  });
+}
+
+function readSection(sec) {
+  CMDS.filter(c => c.s === sec && (c.d === 'read' || c.d === 'both')).forEach(c => {
+    bleWrite([0xED, 0x00, c.k, 0x00]);
+  });
+}
+
+function setPending(key, val) { state.pending[key] = val; renderSections(); }
+
+// Device storage
+const DK = '@lt_devices_v7';
+function saveDevice(d) {
+  let devs = JSON.parse(localStorage.getItem(DK) || '[]');
+  devs = devs.filter(x => x.id !== d.id);
+  devs.unshift({...d, lastSeen: Date.now()});
+  localStorage.setItem(DK, JSON.stringify(devs));
+  renderDevices();
+}
+
+function renderDevices() {
+  const devs = JSON.parse(localStorage.getItem(DK) || '[]');
+  state.devices = devs;
+  document.getElementById('kpiDev').textContent = devs.length;
+  if (!devs.length) {
+    document.getElementById('devList').innerHTML = '<div class="empty">No devices. Tap Scan to find nearby LoRa/MOKO devices.</div>';
+    return;
+  }
+  const now = Date.now();
+  document.getElementById('devList').innerHTML = devs.map(d => {
+    const min = (now - d.lastSeen) / 60000;
+    const st = min < 5 ? {label:'ONLINE',cls:'ok'} : min < 60 ? {label:'RECENT',cls:'warn'} : {label:'OFFLINE',cls:'err'};
+    return `<div class="dev-card" onclick="connectDevice('${d.id}','${d.name}')"><div class="dn">${d.name}</div><div class="did">${d.id}</div><div class="status-row"><span class="badge ${st.cls}">${st.label}</span></div></div>`;
+  }).join('');
+}
+
+function clearDevices() {
+  if (confirm('Delete all saved devices?')) {
+    localStorage.removeItem(DK);
+    renderDevices();
+  }
+}
+
+// Render sections
+function renderSections() {
+  const container = document.getElementById('sections');
+  container.innerHTML = SECTIONS.map(sec => {
+    const cmds = CMDS.filter(c => c.s === sec);
+    return `<div class="section"><div class="sec-hdr"><span>${sec} (${cmds.length})</span><button class="btn bo" onclick="readSection('${sec}')" style="padding:6px 12px;font-size:11px">Refresh</button></div>${cmds.map(renderParamDom).join('')}</div>`;
+  }).join('');
+}
+
+function renderParamDom(c) {
+  const val = state.vals[c.k] || '-';
+  const isPending = state.pending[c.k] !== undefined;
+  const rowClass = isPending ? 'param pending' : 'param';
+  const extraAttrs = isPending ? ' style="border-left:3px solid #FBBC04"' : '';
+  
+  if (c.k === 0xD0) return `<div class="param"><span class="lbl">${c.l}</span><button class="btn bd" onclick="bleWrite([0xED,0x01,0xD0,1,1])">Reboot</button></div>`;
+  if (c.k === 0xD1) return `<div class="param"><span class="lbl">${c.l}</span><button class="btn bd" onclick="if(confirm('All settings lost!')) bleWrite([0xED,0x01,0xD1,1,1])">Factory Reset</button></div>`;
+  
+  if (c.o) {
+    const sel = parseInt(val) || 0;
+    return `<div class="${rowClass}"${extraAttrs} id="p${c.k}"><span class="lbl">${c.l}</span><div style="flex:1.5;display:flex;flex-wrap:wrap;gap:4px">${c.o.map((o,i) => `<button class="btn ${sel===i?'bp':'bd'}" style="font-size:11px;padding:6px 10px" onclick="setPending(${c.k},'${i}')">${o}</button>`).join('')}</div></div>`;
+  }
+  
+  return `<div class="${rowClass}"${extraAttrs} id="p${c.k}"><span class="lbl">${c.l}</span><div style="display:flex;flex:1.5;gap:4px"><input value="${isPending ? state.pending[c.k] : val}" onchange="setPending(${c.k},this.value)" placeholder="Value">${c.d !== 'read' ? `<button class="btn bo" onclick="writeOne(${c.k})" style="padding:6px 12px;font-size:11px">Write</button>` : ''}</div></div>`;
+}
+
+function renderParam(key) { renderSections(); }
+
+function writeOne(key) {
+  const c = CMDS.find(x => x.k === key);
+  let val = state.pending[key] !== undefined ? state.pending[key] : state.vals[key];
+  if (!c || val === undefined || val === '' || val === '-') return;
+  let data = [];
+  if (c.t === 'hex') data = val.match(/.{1,2}/g)?.map(b => parseInt(b, 16)) || [];
+  else if (c.t === 'u8') data = [parseInt(val) || 0];
+  else if (c.t === 'u16') { const n = parseInt(val) || 0; data = [n & 0xFF, (n >> 8) & 0xFF]; }
+  else if (c.t === 'str') data = [...val].map(ch => ch.charCodeAt(0));
+  bleWrite([0xED, 0x01, key, data.length, ...data]);
+  delete state.pending[key];
+  renderSections();
+}
+
+// Init
+renderDevices();
+</script>
+</body>
+</html>
