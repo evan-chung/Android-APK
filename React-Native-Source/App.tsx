@@ -20,9 +20,12 @@ import {
   View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView,
   Alert, PermissionsAndroid, Platform, TextInput,
   Modal, ActivityIndicator, SafeAreaView, Dimensions,
+  ToastAndroid,
 } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { BleManager, Device, State } from 'react-native-ble-plx';
 import { WebView } from 'react-native-webview';
+import { Buffer } from 'buffer';
 
 // ===== Google Maps Configuration =====
 const GOOGLE_MAPS_API_KEY = 'AIzaSyD5ICP2AXbHVCYFLGuNLxj-5dmq2BgDuMM';
@@ -469,23 +472,39 @@ export default function App() {
   const charWriteRef = useRef<any>(null);
   const charNotifyRef = useRef<any>(null);
 
-  // GPS Init
+  // Permissions & Init
   useEffect(() => {
-    Geolocation.getCurrentPosition(
-      (pos) => { setGps({ lat:pos.coords.latitude, lng:pos.coords.longitude }); setGpsLoading(false); },
-      () => { setGpsLoading(false); },
-      { enableHighAccuracy: false, timeout: 15000 }
-    );
-  }, []);
+    const init = async () => {
+      if (Platform.OS === 'android') {
+        const perms = [
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        ];
+        if (Platform.Version >= 31) {
+          perms.push(
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT
+          );
+        }
+        await PermissionsAndroid.requestMultiple(perms);
+      }
 
-  // Lazy init BleManager (do NOT call new BleManager() at module level!)
-  useEffect(() => {
-    try {
-      bleManagerRef.current = new BleManager();
-      console.log('[BLE] Manager initialized');
-    } catch (e) {
-      console.error('[BLE] Init failed:', e);
-    }
+      // GPS Init
+      Geolocation.getCurrentPosition(
+        (pos) => { setGps({ lat:pos.coords.latitude, lng:pos.coords.longitude }); setGpsLoading(false); },
+        () => { setGpsLoading(false); },
+        { enableHighAccuracy: false, timeout: 15000 }
+      );
+
+      // BLE Init
+      try {
+        bleManagerRef.current = new BleManager();
+        console.log('[BLE] Manager initialized');
+      } catch (e) {
+        console.error('[BLE] Init failed:', e);
+      }
+    };
+    init();
+
     return () => {
       if (bleManagerRef.current) {
         bleManagerRef.current.stopDeviceScan();
@@ -717,8 +736,11 @@ export default function App() {
               <Text style={[S.pillT, filterDev===k && S.pillTActive, filterDev!==k && S.pillSecT]}>{v}</Text>
             </TouchableOpacity>
           ))}
-          <TouchableOpacity style={[S.pill, S.btnO]} onPress={mockScan} disabled={scanning}>
-            <Text style={S.pillTTActive}>{scanning ? '⏳ 掃描中' : '🔍 掃描'}</Text>
+          <TouchableOpacity style={[S.pill, S.btnO]} onPress={startScan} disabled={scanning}>
+            <Text style={S.pillTActive}>{scanning ? '⏳ 掃描中' : '🔍 掃描'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[S.pill, S.btnS]} onPress={mockScan} disabled={scanning}>
+            <Text style={S.pillTActive}>MOCK</Text>
           </TouchableOpacity>
         </View>
 
@@ -889,6 +911,13 @@ export default function App() {
                 <Text style={[S.tabChipT, consoleMode===m && S.tabChipTA]}>{m}</Text>
               </TouchableOpacity>
             ))}
+            <TouchableOpacity onPress={() => {
+              const text = logs.map(l => `[${l.ts}] ${l.type} ${l.msg}`).join('\n');
+              Clipboard.setString(text);
+              ToastAndroid.show('已複製到剪貼簿', ToastAndroid.SHORT);
+            }}>
+              <Text style={{ fontSize:12, color:C.muted }}>📋 複製</Text>
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => setLogs([])}>
               <Text style={{ fontSize:12, color:C.muted }}>🗑 清除</Text>
             </TouchableOpacity>
@@ -1053,7 +1082,7 @@ export default function App() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {filteredDevices.slice(0, 10).map(d => (
               <TouchableOpacity key={d.id} style={{ width: 100, padding: 8, marginHorizontal: 4, backgroundColor: d.online ? '#ecfdf5' : '#fef2f2', borderRadius: 8 }}
-                onPress={() => { connectDevice(d); }}>
+                onPress={() => { connectDevice(d); setTab('devices'); }}>
                 <Text style={{ fontSize: 11, fontWeight: '600', color: C.text }} numberOfLines={1}>{d.name}</Text>
                 <Text style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>📶 {d.rssi || '—'} dBm</Text>
                 <Text style={{ fontSize: 10, color: d.online ? C.success : C.danger }}>{d.online ? '● Online' : '○ Offline'}</Text>
