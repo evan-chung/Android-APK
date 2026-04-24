@@ -2,8 +2,8 @@
 
 // ===== CloudTek Logo =====
 const CLOUDTEK_LOGO = require('./cloudtek_logo.png');
- * LoRaTool v10 - Industrial IoT Design
- * Based on: UIdesign.md + docx_text.txt
+ * LoRaTool v9.7 - Industrial IoT Design
+ * Based on: LoRaTool-v9.7.apk binary analysis
  * 
  * Architecture:
  * - Dashboard (KPI Cards + Chart + Device List)
